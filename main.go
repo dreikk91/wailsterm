@@ -24,6 +24,8 @@ func main() {
 		Mac: application.MacOptions{
 			ApplicationShouldTerminateAfterLastWindowClosed: true,
 		},
+		// widget servers (file/FTP/SSH) must not outlive the app
+		OnShutdown: srv.widgets.stopAll,
 	})
 
 	// The UI (electerm's client) is served by srv; the window simply loads it.

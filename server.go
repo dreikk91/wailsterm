@@ -63,7 +63,8 @@ type Server struct {
 	subMu sync.Mutex
 	subs  map[chan []byte]bool
 
-	watch fileWatch
+	watch   fileWatch
+	widgets widgetRuntime
 }
 
 func NewServer() (*Server, error) {
@@ -73,6 +74,7 @@ func NewServer() (*Server, error) {
 	}
 	var pkg struct{ Version string }
 	json.Unmarshal(uiPackage, &pkg)
+	go pruneWidgetLogs()
 	if err := seedDB(db, pkg.Version); err != nil {
 		return nil, fmt.Errorf("seed database: %w", err)
 	}
@@ -166,11 +168,11 @@ body { background: #000; }
 
 func (s *Server) index(w http.ResponseWriter, r *http.Request) {
 	et := map[string]any{
-		"version":             s.version,
-		"siteName":            "electerm",
-		"isDev":               false,
-		"tokenElecterm":       s.token,
-		"disableAIFeature":    false,
+		"version":          s.version,
+		"siteName":         "electerm",
+		"isDev":            false,
+		"tokenElecterm":    s.token,
+		"disableAIFeature": false,
 		// pug.js data: the free endpoint electerm preconfigures
 		"defaultAIPreset": map[string]any{
 			"baseURLAI": "https://ai.electerm.org/api/ai", "apiPathAI": "/chat/completions", "modelAI": "free",

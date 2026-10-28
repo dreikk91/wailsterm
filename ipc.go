@@ -44,7 +44,7 @@ var defaultConfig = map[string]any{
 	"disableDeveloperTool": false, "dragDropBehavior": "ask", "switchTabOnHover": false,
 	"autoDistributeTabsWhenLayoutChange": false, "disableShortcutBar": false, "onlyShowTitleInTab": false,
 	"disableConfirmForLargeClipboardContent": false, "doubleClickToOpenBookmark": false,
-	"leftSideBarIcons": []any{"bookmarks", "quickConnect", "terminalThemes", "setting"},
+	"leftSideBarIcons": []any{"bookmarks", "quickConnect", "terminalThemes", "setting", "settingSync", "widgets"},
 	"terminalTimeout":  5000, "zoom": 1, "debug": false, "theme": "default",
 	"syncSetting": map[string]any{"autoSync": false, "autoSyncInterval": 0, "autoSyncDirection": "upload"},
 	"keyword2FA":  "verification code,otp,one-time,two-factor,2fa,totp,authenticator,duo,yubikey,security code,mfa,passcode",
@@ -66,6 +66,10 @@ func (s *Server) config() map[string]any {
 	}
 	for k, v := range s.userConfig() {
 		c[k] = v
+	}
+	// earlier wailsterm builds saved this shortened default; let electerm's full list apply instead
+	if icons, _ := json.Marshal(c["leftSideBarIcons"]); string(icons) == `["bookmarks","quickConnect","terminalThemes","setting"]` {
+		c["leftSideBarIcons"] = defaultConfig["leftSideBarIcons"]
 	}
 	for _, k := range []string{"_id", "hashedPassword", "salt"} {
 		delete(c, k)
@@ -224,7 +228,7 @@ func (s *Server) runAsync(name string, args []any) (any, error) {
 		exe, _ := os.Executable()
 		return map[string]any{
 			"config": s.config(), "installSrc": "", "appPath": dataDir(),
-			"exePath": filepath.Dir(exe), "isPortable": false, "widgetLogPath": "",
+			"exePath": filepath.Dir(exe), "isPortable": false, "widgetLogPath": widgetLogDir(),
 		}, nil
 	case "dbAction":
 		if len(args) < 2 {
@@ -249,7 +253,7 @@ func (s *Server) runAsync(name string, args []any) (any, error) {
 		return false, nil
 	case "migrate", "doUpgrade", "setExitStatus", "setCloseAction", "confirmExit", "setTitleBarOverlay",
 		"setBackgroundColor", "setWindowSize", "changeHotkey", "registerDeepLink", "unregisterDeepLink",
-		"setRdpSwapCtrlCmd", "openDevTools", "stopWidget":
+		"setRdpSwapCtrlCmd", "openDevTools":
 		return nil, nil
 	case "initCommandLine", "getPendingDeepLink", "getPendingVvFile":
 		return nil, nil
@@ -263,8 +267,18 @@ func (s *Server) runAsync(name string, args []any) (any, error) {
 	case "unwatchFile":
 		s.watch.unwatch()
 		return nil, nil
-	case "listWidgets", "listItermThemes":
-		return []any{}, nil
+	case "listWidgets":
+		return s.widgets.list(), nil
+	case "runWidget":
+		return s.widgets.run(argStr(args, 0), asMap(argAt(args, 1)))
+	case "stopWidget":
+		return s.widgets.stop(argStr(args, 0))
+	case "callWidgetFunc":
+		return s.widgets.call(argStr(args, 0), argStr(args, 1))
+	case "runWidgetFunc":
+		return nil, fmt.Errorf("Function %s not found in widget instance", argStr(args, 1))
+	case "importWidget", "importWidgetFromSource", "deleteWidget":
+		return nil, errUserWidgets
 	case "listSerialPorts":
 		return listSerialPorts(), nil
 	case "lookup":
