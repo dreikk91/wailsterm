@@ -12,22 +12,23 @@ import (
 	"golang.org/x/crypto/ssh"
 )
 
-// vncTarget is a VNC tab prepared by create-terminal; /vnc/:pid bridges noVNC to it (session-vnc.js).
-type vncTarget struct {
+// hopTarget is a VNC or RDP tab prepared by create-terminal: where to connect and, when the
+// bookmark uses connection hopping, the SSH jump client to connect through (session-hop.js).
+type hopTarget struct {
 	o      opts
 	client *ssh.Client // last SSH jump host, when the bookmark uses connection hopping
 	jumps  []*ssh.Client
 }
 
 var (
-	vncMu      sync.Mutex
-	vncTargets = map[string]*vncTarget{}
+	hopMu      sync.Mutex
+	hopTargets = map[string]*hopTarget{}
 )
 
-// prepareVNC connects the bookmark's SSH jump hosts (if any) now, while host key and
+// prepareHops connects the bookmark's SSH jump hosts (if any) now, while host key and
 // password prompts can still reach the tab; the VNC TCP connection itself is opened per socket.
-func prepareVNC(o opts, ask interactor) (*vncTarget, error) {
-	t := &vncTarget{o: o}
+func prepareHops(o opts, ask interactor) (*hopTarget, error) {
+	t := &hopTarget{o: o}
 	hops := asSlice(o["connectionHoppings"])
 	if o["hasHopping"] != true || len(hops) == 0 {
 		return t, nil
@@ -49,15 +50,18 @@ func prepareVNC(o opts, ask interactor) (*vncTarget, error) {
 	return t, nil
 }
 
-func (t *vncTarget) dial() (net.Conn, error) {
-	addr := net.JoinHostPort(t.o.str("host"), strconv.Itoa(t.o.num("port", 5900)))
+func (t *hopTarget) dial(defaultPort int) (net.Conn, error) {
+	return t.dialAddr(net.JoinHostPort(t.o.str("host"), strconv.Itoa(t.o.num("port", defaultPort))))
+}
+
+func (t *hopTarget) dialAddr(addr string) (net.Conn, error) {
 	if t.client != nil {
 		return t.client.Dial("tcp", addr)
 	}
 	return dialVia(t.o.str("proxy"), addr, time.Duration(t.o.num("readyTimeout", 50000))*time.Millisecond)
 }
 
-func (t *vncTarget) Close() {
+func (t *hopTarget) Close() {
 	if t.client != nil {
 		t.client.Close()
 	}
@@ -66,28 +70,38 @@ func (t *vncTarget) Close() {
 	}
 }
 
-func (s *Server) handleVNC(w http.ResponseWriter, r *http.Request) {
+// takeTarget accepts the socket for a prepared tab; the target is released when done() runs.
+func takeTarget(w http.ResponseWriter, r *http.Request) (*hopTarget, *wsConn, func()) {
 	pid := r.PathValue("pid")
-	vncMu.Lock()
-	t := vncTargets[pid]
-	vncMu.Unlock()
+	hopMu.Lock()
+	t := hopTargets[pid]
+	hopMu.Unlock()
 	if t == nil {
-		http.Error(w, "no such vnc session", http.StatusNotFound)
-		return
+		http.Error(w, "no such session", http.StatusNotFound)
+		return nil, nil, nil
 	}
 	ws, err := accept(w, r)
 	if err != nil {
+		return nil, nil, nil
+	}
+	return t, ws, func() {
+		hopMu.Lock()
+		if hopTargets[pid] == t {
+			delete(hopTargets, pid)
+		}
+		hopMu.Unlock()
+		t.Close()
+	}
+}
+
+// handleVNC is session-vnc.js: noVNC's socket bridged to the server's TCP port.
+func (s *Server) handleVNC(w http.ResponseWriter, r *http.Request) {
+	t, ws, done := takeTarget(w, r)
+	if t == nil {
 		return
 	}
-	defer func() {
-		vncMu.Lock()
-		if vncTargets[pid] == t {
-			delete(vncTargets, pid)
-		}
-		vncMu.Unlock()
-		t.Close()
-	}()
-	conn, err := t.dial()
+	defer done()
+	conn, err := t.dial(5900)
 	if err != nil {
 		ws.c.Close(websocket.StatusInternalError, truncate(err.Error(), 120))
 		return

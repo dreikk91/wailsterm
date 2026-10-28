@@ -115,6 +115,7 @@ func (s *Server) routes() http.Handler {
 	mux.HandleFunc("GET /sftp/{id}", s.authed(s.handleSftp))
 	mux.HandleFunc("GET /transfer/{id}", s.authed(s.handleTransfer))
 	mux.HandleFunc("GET /vnc/{pid}", s.authed(s.handleVNC))
+	mux.HandleFunc("GET /rdp/{pid}", s.authed(s.handleRDP))
 	// Requests must name our exact host:port, which defeats DNS rebinding from web pages.
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Host != s.addr {
@@ -172,7 +173,7 @@ func (s *Server) index(w http.ResponseWriter, r *http.Request) {
 		"disableUpgradeCheck": true,
 		"hasNodePty":          true,
 		// session types the Go backend implements; the bookmark form hides the rest
-		"supportSessionTypes": []string{"ssh", "telnet", "serial", "local", "ftp", "vnc"},
+		"supportSessionTypes": []string{"ssh", "telnet", "serial", "local", "ftp", "vnc", "rdp"},
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
@@ -392,11 +393,11 @@ func (s *Server) commonAction(ws *wsConn, msg map[string]any) {
 			ws.reply(id, map[string]any{"pid": o.str("uid"), "port": port}, nil)
 			return
 		}
-		if o.str("termType") == "vnc" {
-			t, err := prepareVNC(o, ask)
+		if typ := o.str("termType"); typ == "vnc" || typ == "rdp" {
+			t, err := prepareHops(o, ask)
 			if err == nil && str(msg, "action") == "test-terminal" {
 				var c net.Conn
-				if c, err = t.dial(); err == nil {
+				if c, err = t.dial(map[string]int{"vnc": 5900, "rdp": 3389}[typ]); err == nil {
 					c.Close()
 				}
 				t.Close()
@@ -407,12 +408,12 @@ func (s *Server) commonAction(ws *wsConn, msg map[string]any) {
 				ws.reply(id, nil, err)
 				return
 			}
-			vncMu.Lock()
-			if old := vncTargets[o.str("uid")]; old != nil {
+			hopMu.Lock()
+			if old := hopTargets[o.str("uid")]; old != nil {
 				old.Close()
 			}
-			vncTargets[o.str("uid")] = t
-			vncMu.Unlock()
+			hopTargets[o.str("uid")] = t
+			hopMu.Unlock()
 			ws.reply(id, map[string]any{"pid": o.str("uid"), "port": port}, nil)
 			return
 		}

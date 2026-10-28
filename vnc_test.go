@@ -32,13 +32,13 @@ func TestVNCBridge(t *testing.T) {
 	go http.Serve(ln, s.routes())
 	defer ln.Close()
 
-	tgt, err := prepareVNC(opts{"host": "127.0.0.1", "port": float64(epn)}, nil)
+	tgt, err := prepareHops(opts{"host": "127.0.0.1", "port": float64(epn)}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
-	vncMu.Lock()
-	vncTargets["v1"] = tgt
-	vncMu.Unlock()
+	hopMu.Lock()
+	hopTargets["v1"] = tgt
+	hopMu.Unlock()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
