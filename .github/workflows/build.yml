@@ -18,15 +18,12 @@ jobs:
         include:
           - os: windows-latest
             task: build
-            asset: wailsterm-windows-amd64.zip
             pack: 7z a ../wailsterm-windows-amd64.zip wailsterm.exe
           - os: ubuntu-24.04
-            task: build
-            asset: wailsterm-linux-amd64.tar.gz
-            pack: tar czf ../wailsterm-linux-amd64.tar.gz wailsterm
+            task: task linux:create:appimage
+            pack: tar czf ../wailsterm-linux-amd64.tar.gz wailsterm && mv wailsterm-x86_64.AppImage ../wailsterm-linux-x86_64.AppImage
           - os: macos-latest
             task: package
-            asset: wailsterm-macos-arm64.zip
             pack: ditto -c -k --keepParent wailsterm.app ../wailsterm-macos-arm64.zip
     runs-on: ${{ matrix.os }}
     defaults:
@@ -50,8 +47,8 @@ jobs:
         working-directory: bin
       - uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.asset }}
-          path: ${{ matrix.asset }}
+          name: ${{ matrix.os }}
+          path: wailsterm-*
 
   release:
     if: startsWith(github.ref, 'refs/tags/v')
