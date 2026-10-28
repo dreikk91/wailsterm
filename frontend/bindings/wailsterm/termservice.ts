@@ -9,12 +9,15 @@ import { Call as $Call, CancellablePromise as $CancellablePromise } from "@wails
 // @ts-ignore: Unused imports
 import * as $models from "./models.js";
 
-export function Bookmarks(): $CancellablePromise<$models.Bookmark[] | null> {
-    return $Call.ByID(3536894272);
-}
-
 export function Close(id: string): $CancellablePromise<void> {
     return $Call.ByID(3963084357, id);
+}
+
+/**
+ * Load returns the raw JSON of a store, or "" if it was never saved.
+ */
+export function Load(name: string): $CancellablePromise<string> {
+    return $Call.ByID(1186914519, name);
 }
 
 export function OpenLocal(cols: number, rows: number): $CancellablePromise<string> {
@@ -25,12 +28,58 @@ export function OpenSSH(b: $models.Bookmark, cols: number, rows: number): $Cance
     return $Call.ByID(4226081955, b, cols, rows);
 }
 
+export function OpenSerial(b: $models.Bookmark): $CancellablePromise<string> {
+    return $Call.ByID(2989200167, b);
+}
+
+export function OpenTelnet(b: $models.Bookmark): $CancellablePromise<string> {
+    return $Call.ByID(4190641727, b);
+}
+
 export function Resize(id: string, cols: number, rows: number): $CancellablePromise<void> {
     return $Call.ByID(2185863351, id, cols, rows);
 }
 
-export function SaveBookmarks(bs: $models.Bookmark[] | null): $CancellablePromise<void> {
-    return $Call.ByID(1433771451, bs);
+export function Save(name: string, data: string): $CancellablePromise<void> {
+    return $Call.ByID(3867748618, name, data);
+}
+
+export function SerialPorts(): $CancellablePromise<string[] | null> {
+    return $Call.ByID(680931581);
+}
+
+/**
+ * SftpDownload asks for a local destination and copies the remote file there. Returns "" if cancelled.
+ */
+export function SftpDownload(id: string, remote: string): $CancellablePromise<string> {
+    return $Call.ByID(929393858, id, remote);
+}
+
+/**
+ * SftpList lists dir; empty dir means the remote home directory.
+ */
+export function SftpList(id: string, dir: string): $CancellablePromise<$models.Listing> {
+    return $Call.ByID(3283872398, id, dir);
+}
+
+export function SftpMkdir(id: string, p: string): $CancellablePromise<void> {
+    return $Call.ByID(3710012697, id, p);
+}
+
+export function SftpRemove(id: string, p: string): $CancellablePromise<void> {
+    return $Call.ByID(2616792054, id, p);
+}
+
+export function SftpRename(id: string, $from: string, to: string): $CancellablePromise<void> {
+    return $Call.ByID(679776732, id, $from, to);
+}
+
+/**
+ * SftpUpload asks for local files and copies them into remoteDir. Returns the uploaded count.
+ * ponytail: synchronous, no progress events; add a transfer queue for large files.
+ */
+export function SftpUpload(id: string, remoteDir: string): $CancellablePromise<number> {
+    return $Call.ByID(2178818823, id, remoteDir);
 }
 
 export function Write(id: string, data: string): $CancellablePromise<void> {

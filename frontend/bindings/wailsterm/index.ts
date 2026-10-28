@@ -7,5 +7,7 @@ export {
 };
 
 export type {
-    Bookmark
+    Bookmark,
+    FileEntry,
+    Listing
 } from "./models.js";

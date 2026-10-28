@@ -5,6 +5,7 @@
     "noEmit": true,
     "skipLibCheck": true,
 
+    "target": "ESNext",
     "module": "ESNext",
     "moduleResolution": "bundler",
     "resolveJsonModule": true,

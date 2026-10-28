@@ -22,6 +22,7 @@ import (
 
 type Bookmark struct {
 	ID       string `json:"id"`
+	Type     string `json:"type"` // ssh (default), telnet, serial; for serial Host is the device and Port the baud rate
 	Title    string `json:"title"`
 	Host     string `json:"host"`
 	Port     int    `json:"port"`
@@ -31,6 +32,7 @@ type Bookmark struct {
 }
 
 type session struct {
+	client *ssh.Client // nil for local sessions
 	w      io.Writer
 	resize func(cols, rows int) error
 	close  func() error
@@ -190,6 +192,7 @@ func (t *TermService) OpenSSH(b Bookmark, cols, rows int) (string, error) {
 		return "", err
 	}
 	id := t.add(&session{
+		client: client,
 		w:      stdin,
 		resize: func(c, r int) error { return sess.WindowChange(r, c) },
 		close:  client.Close,
@@ -224,24 +227,36 @@ func (t *TermService) Close(id string) {
 	}
 }
 
-func bookmarksFile() string { return filepath.Join(configDir(), "bookmarks.json") }
+// stores are the config files the frontend may read/write; the allowlist keeps names out of path traversal.
+var stores = map[string]bool{"bookmarks": true, "quickcommands": true, "settings": true}
 
-func (t *TermService) Bookmarks() ([]Bookmark, error) {
-	data, err := os.ReadFile(bookmarksFile())
-	if errors.Is(err, os.ErrNotExist) {
-		return []Bookmark{}, nil
+func storeFile(name string) (string, error) {
+	if !stores[name] {
+		return "", errors.New("unknown store " + name)
 	}
-	if err != nil {
-		return nil, err
-	}
-	var bs []Bookmark
-	return bs, json.Unmarshal(data, &bs)
+	return filepath.Join(configDir(), name+".json"), nil
 }
 
-func (t *TermService) SaveBookmarks(bs []Bookmark) error {
-	data, err := json.MarshalIndent(bs, "", "  ")
+// Load returns the raw JSON of a store, or "" if it was never saved.
+func (t *TermService) Load(name string) (string, error) {
+	f, err := storeFile(name)
+	if err != nil {
+		return "", err
+	}
+	data, err := os.ReadFile(f)
+	if errors.Is(err, os.ErrNotExist) {
+		return "", nil
+	}
+	return string(data), err
+}
+
+func (t *TermService) Save(name, data string) error {
+	f, err := storeFile(name)
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(bookmarksFile(), data, 0o600)
+	if !json.Valid([]byte(data)) {
+		return errors.New("invalid JSON")
+	}
+	return os.WriteFile(f, []byte(data), 0o600)
 }

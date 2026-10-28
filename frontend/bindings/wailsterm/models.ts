@@ -3,6 +3,11 @@
 
 export interface Bookmark {
     "id": string;
+
+    /**
+     * ssh (default), telnet, serial; for serial Host is the device and Port the baud rate
+     */
+    "type": string;
     "title": string;
     "host": string;
     "port": number;
@@ -13,4 +18,17 @@ export interface Bookmark {
      */
     "password": string;
     "keyPath": string;
+}
+
+export interface FileEntry {
+    "name": string;
+    "size": number;
+    "mode": string;
+    "modTime": number;
+    "isDir": boolean;
+}
+
+export interface Listing {
+    "path": string;
+    "entries": FileEntry[] | null;
 }
