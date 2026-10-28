@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <link rel="icon" type="image/png" href="/wails.png"/>
+    <title>wailsterm</title>
+</head>
+<body>
+<aside id="sidebar">
+    <button id="new-local">+ Local terminal</button>
+    <h3>Bookmarks</h3>
+    <ul id="bookmarks"></ul>
+    <form id="bm-form">
+        <h3>SSH bookmark</h3>
+        <input type="hidden" name="id"/>
+        <input name="title" placeholder="Title"/>
+        <input name="host" placeholder="Host" required/>
+        <input name="port" type="number" placeholder="22"/>
+        <input name="user" placeholder="User" required/>
+        <input name="password" type="password" placeholder="Password / passphrase"/>
+        <input name="keyPath" placeholder="Private key path (optional)"/>
+        <div class="row">
+            <button type="submit">Save</button>
+            <button type="button" id="bm-connect">Connect</button>
+            <button type="reset">Clear</button>
+        </div>
+    </form>
+</aside>
+<main>
+    <nav id="tabs"></nav>
+    <div id="terms"></div>
+</main>
+<script type="module" src="/src/main.ts"></script>
+</body>
+</html>
