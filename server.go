@@ -110,6 +110,7 @@ func (s *Server) routes() http.Handler {
 	mux.HandleFunc("POST /api/sync", s.authed(s.handleSync))
 	mux.HandleFunc("POST /api/async", s.authed(s.handleAsync))
 	mux.HandleFunc("GET /api/events", s.authed(s.handleEvents))
+	mux.HandleFunc("POST /api/http", s.authed(s.handleHTTP))
 	mux.HandleFunc("GET /common/s", s.authed(s.handleCommon))
 	mux.HandleFunc("GET /terminals/{pid}", s.authed(s.handleTerminal))
 	mux.HandleFunc("GET /sftp/{id}", s.authed(s.handleSftp))
@@ -472,6 +473,15 @@ func (s *Server) commonAction(ws *wsConn, msg map[string]any) {
 		}
 		res, err := s.execCmd(pid, str(msg, "cmd"), timeout)
 		ws.reply(id, res, err)
+	case "sync":
+		data, err := doSync(str(msg, "type"), str(msg, "func"), asSlice(msg["args"]), str(msg, "token"), str(msg, "proxy"))
+		if err != nil {
+			err = fmt.Errorf("Sync data error: %w", err)
+		}
+		ws.reply(id, data, err)
+	case "fetch":
+		data, err := axiosLike(asMap(msg["options"]), str(msg, "proxy"), false)
+		ws.reply(id, data, err)
 	case "fs":
 		args, _ := msg["args"].([]any)
 		data, err := fsCall(str(msg, "func"), args)

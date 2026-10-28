@@ -278,8 +278,12 @@ func (s *Server) runAsync(name string, args []any) (any, error) {
 			return os.Getenv(k), nil
 		}
 		return map[string]string{"HOME": os.Getenv("HOME"), "USERPROFILE": os.Getenv("USERPROFILE")}, nil
-	case "safeEncrypt", "safeDecrypt", "encryptAsync", "decryptAsync":
-		// ponytail: identity; the DB file itself is encrypted at rest (secret_*.go).
+	case "encryptAsync":
+		return encryptSync(argStr(args, 0), argStr(args, 1))
+	case "decryptAsync":
+		return decryptSync(argStr(args, 0), argStr(args, 1))
+	case "safeEncrypt", "safeDecrypt":
+		// the client does not call these; electerm uses them for its own DB, ours is encrypted in secret_*.go
 		return argStr(args, 0), nil
 	case "getScreenSize":
 		if sc := application.Get().Screen.GetPrimary(); sc != nil {
