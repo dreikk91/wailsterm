@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"html/template"
+	"io"
 	"io/fs"
 	"log"
 	"net"
@@ -20,6 +21,7 @@ import (
 	"time"
 
 	"github.com/coder/websocket"
+	"github.com/trzsz/trzsz-go/trzsz"
 	"golang.org/x/crypto/ssh"
 )
 
@@ -425,6 +427,7 @@ func (s *Server) commonAction(ws *wsConn, msg map[string]any) {
 			return
 		}
 		t.pid = o.str("uid")
+		t.cols.Store(int32(o.num("cols", 80)))
 		t.logDir, t.logName, t.logTS = o.str("sessionLogPath"), o.str("logName"), o["addTimeStampToTermLog"] == true
 		if t.logName == "" {
 			t.logName = t.pid
@@ -446,7 +449,12 @@ func (s *Server) commonAction(ws *wsConn, msg map[string]any) {
 		ws.reply(id, map[string]any{"pid": t.pid, "port": port}, nil)
 	case "resize-terminal":
 		if t := s.term(pid); t != nil {
-			t.resize(int(msg["cols"].(float64)), int(msg["rows"].(float64)))
+			cols := int(msg["cols"].(float64))
+			t.resize(cols, int(msg["rows"].(float64)))
+			t.cols.Store(int32(cols))
+			if f := t.trz.Load(); f != nil {
+				f.SetTerminalColumns(int32(cols))
+			}
 		}
 		ws.reply(id, "ok", nil)
 	case "run-cmd":
@@ -554,11 +562,21 @@ func (s *Server) handleTerminal(w http.ResponseWriter, r *http.Request) {
 		s.mu.Unlock()
 		ws.c.Close(websocket.StatusNormalClosure, "")
 	}()
+	// trzsz (trz/tsz, and rz/sz where a local lrzsz exists) runs as a filter between the
+	// session and the socket, in place of electerm's server-side trzsz.js/zmodem.js.
+	out, in := io.Reader(t.out), io.Writer(t.in)
+	clientIn, toFilter := io.Pipe()
+	fromFilter, clientOut := io.Pipe()
+	f := trzsz.NewTrzszFilter(clientIn, clientOut, writeCloser{t.in}, t.out,
+		trzsz.TrzszOptions{TerminalColumns: int32(t.cols.Load()), EnableZmodem: true})
+	t.trz.Store(f)
+	out, in = fromFilter, toFilter
+	defer toFilter.Close()
 	go func() {
 		defer cancel()
 		buf := make([]byte, 32*1024)
 		for {
-			n, err := t.out.Read(buf)
+			n, err := out.Read(buf)
 			if n > 0 {
 				t.logWrite(buf[:n])
 				if ws.c.Write(ctx, websocket.MessageBinary, buf[:n]) != nil {
@@ -582,8 +600,18 @@ func (s *Server) handleTerminal(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 		}
-		if _, err := t.in.Write(b); err != nil {
+		if _, err := in.Write(b); err != nil {
 			return
 		}
 	}
+}
+
+// writeCloser lets a plain writer be the filter's server input; closing it is a no-op.
+type writeCloser struct{ io.Writer }
+
+func (w writeCloser) Close() error {
+	if c, ok := w.Writer.(io.Closer); ok {
+		return c.Close()
+	}
+	return nil
 }

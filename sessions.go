@@ -11,9 +11,11 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/aymanbagabas/go-pty"
+	"github.com/trzsz/trzsz-go/trzsz"
 	"go.bug.st/serial"
 	"golang.org/x/crypto/ssh"
 )
@@ -27,6 +29,9 @@ type Term struct {
 	close  func() error
 	client *ssh.Client // set for SSH sessions; SFTP rides on it
 	once   sync.Once
+
+	cols atomic.Int32
+	trz  atomic.Pointer[trzsz.TrzszFilter]
 
 	logMu   sync.Mutex
 	log     *termLog
