@@ -17,7 +17,7 @@ tasks:
       - task: install:frontend:deps:{{.PACKAGE_MANAGER}}
 
   install:frontend:deps:npm:
-    dir: frontend
+    dir: ui
     sources:
       - package.json
       - package-lock.json
@@ -30,7 +30,7 @@ tasks:
       - npm install
 
   install:frontend:deps:bun:
-    dir: frontend
+    dir: ui
     sources:
       - package.json
       - bun.lock
@@ -44,7 +44,7 @@ tasks:
       - bun install
 
   install:frontend:deps:pnpm:
-    dir: frontend
+    dir: ui
     sources:
       - package.json
       - pnpm-lock.yaml
@@ -57,7 +57,7 @@ tasks:
       - pnpm install
 
   install:frontend:deps:yarn:
-    dir: frontend
+    dir: ui
     sources:
       - package.json
       - yarn.lock
@@ -78,20 +78,15 @@ tasks:
     # other's bundler is reading it, failing intermittently with
     # 'Could not resolve "./bindings/<pkg>"' (#4637).
     run: once
-    dir: frontend
+    dir: ui
     sources:
       - "**/*"
       - exclude: node_modules/**/*
     generates:
       - dist/**/*
+    # The UI is electerm's client (ui/); it talks to the Go server over HTTP/WebSocket, so there are no bindings.
     deps:
       - task: install:frontend:deps
-      - task: generate:bindings
-        vars:
-          BUILD_FLAGS:
-            ref: .BUILD_FLAGS
-          OBFUSCATED:
-            ref: .OBFUSCATED
     cmds:
       - task: frontend:run
         vars:
@@ -109,28 +104,28 @@ tasks:
       SCRIPT: "{{.SCRIPT}}"
 
   frontend:run:npm:
-    dir: frontend
+    dir: ui
     cmds:
       - npm run {{.SCRIPT}} -q
     vars:
       SCRIPT: "{{.SCRIPT}}"
 
   frontend:run:yarn:
-    dir: frontend
+    dir: ui
     cmds:
       - yarn {{.SCRIPT}}
     vars:
       SCRIPT: "{{.SCRIPT}}"
 
   frontend:run:pnpm:
-    dir: frontend
+    dir: ui
     cmds:
       - pnpm run {{.SCRIPT}}
     vars:
       SCRIPT: "{{.SCRIPT}}"
 
   frontend:run:bun:
-    dir: frontend
+    dir: ui
     cmds:
       - bun run {{.SCRIPT}}
     vars:
@@ -211,22 +206,22 @@ tasks:
       - task: frontend:dev:{{.PACKAGE_MANAGER}}
 
   frontend:dev:npm:
-    dir: frontend
+    dir: ui
     cmds:
       - npm run dev -- --port {{.VITE_PORT}} --strictPort
 
   frontend:dev:yarn:
-    dir: frontend
+    dir: ui
     cmds:
       - yarn dev --port {{.VITE_PORT}} --strictPort
 
   frontend:dev:pnpm:
-    dir: frontend
+    dir: ui
     cmds:
       - pnpm dev --port {{.VITE_PORT}} --strictPort
 
   frontend:dev:bun:
-    dir: frontend
+    dir: ui
     cmds:
       - bun run dev --port {{.VITE_PORT}} --strictPort
 

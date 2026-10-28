@@ -4,10 +4,6 @@ import (
 	"bufio"
 	"io"
 	"net"
-	"strconv"
-	"time"
-
-	"go.bug.st/serial"
 )
 
 const (
@@ -97,33 +93,3 @@ func (w telnetWriter) Write(p []byte) (int, error) {
 	_, err := w.c.Write(out)
 	return len(p), err
 }
-
-func noResize(int, int) error { return nil }
-
-func (t *TermService) OpenTelnet(b Bookmark) (string, error) {
-	if b.Port == 0 {
-		b.Port = 23
-	}
-	c, err := net.DialTimeout("tcp", net.JoinHostPort(b.Host, strconv.Itoa(b.Port)), 10*time.Second)
-	if err != nil {
-		return "", err
-	}
-	id := t.add(&session{w: telnetWriter{c}, resize: noResize, close: c.Close})
-	go t.pump(id, &telnetReader{bufio.NewReader(c), c})
-	return id, nil
-}
-
-func (t *TermService) OpenSerial(b Bookmark) (string, error) {
-	if b.Port == 0 {
-		b.Port = 9600
-	}
-	p, err := serial.Open(b.Host, &serial.Mode{BaudRate: b.Port})
-	if err != nil {
-		return "", err
-	}
-	id := t.add(&session{w: p, resize: noResize, close: p.Close})
-	go t.pump(id, p)
-	return id, nil
-}
-
-func (t *TermService) SerialPorts() ([]string, error) { return serial.GetPortsList() }
