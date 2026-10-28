@@ -43,7 +43,15 @@ function runSync (name, ...args) {
   return localSync[name] ? localSync[name](...args) : runSyncRemote(name, args)
 }
 
+// answered from the UI bundle (electerm reads these npm packages in the main process)
+const localAsync = {
+  listItermThemes: async () => (await import('@electerm/electerm-themes/dist/index.mjs')).default
+}
+
 async function runGlobalAsync (name, ...args) {
+  if (localAsync[name]) {
+    return localAsync[name](...args)
+  }
   const r = await window.fetch('/api/async', {
     method: 'POST',
     headers,

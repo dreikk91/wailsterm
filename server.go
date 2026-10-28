@@ -60,6 +60,8 @@ type Server struct {
 
 	subMu sync.Mutex
 	subs  map[chan []byte]bool
+
+	watch fileWatch
 }
 
 func NewServer() (*Server, error) {

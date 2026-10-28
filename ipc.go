@@ -249,13 +249,21 @@ func (s *Server) runAsync(name string, args []any) (any, error) {
 		return false, nil
 	case "migrate", "doUpgrade", "setExitStatus", "setCloseAction", "confirmExit", "setTitleBarOverlay",
 		"setBackgroundColor", "setWindowSize", "changeHotkey", "registerDeepLink", "unregisterDeepLink",
-		"watchFile", "unwatchFile", "setRdpSwapCtrlCmd", "openDevTools", "stopWidget":
+		"setRdpSwapCtrlCmd", "openDevTools", "stopWidget":
 		return nil, nil
 	case "initCommandLine", "getPendingDeepLink", "getPendingVvFile":
 		return nil, nil
 	case "loadSshConfig":
 		return loadSSHConfig(), nil
-	case "listWidgets", "loadFontList", "listItermThemes":
+	case "loadFontList":
+		return systemFonts(), nil
+	case "watchFile":
+		s.watch.watch(argStr(args, 0), s.Emit)
+		return nil, nil
+	case "unwatchFile":
+		s.watch.unwatch()
+		return nil, nil
+	case "listWidgets", "listItermThemes":
 		return []any{}, nil
 	case "listSerialPorts":
 		return listSerialPorts(), nil
@@ -310,7 +318,7 @@ func (s *Server) runAsync(name string, args []any) (any, error) {
 	case "getElectermCommandStatus":
 		return map[string]any{"supported": false}, nil
 	case "openFileWithEditor":
-		return nil, openPath(argStr(args, 0))
+		return nil, openFileWithEditor(argStr(args, 0), argStr(args, 1))
 	}
 	return nil, fmt.Errorf("%q is not available in wailsterm yet", name)
 }

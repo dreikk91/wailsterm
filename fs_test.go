@@ -2,9 +2,13 @@ package main
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
+	"slices"
 	"testing"
+	"time"
 )
 
 func TestCopyTree(t *testing.T) {
@@ -93,5 +97,40 @@ func TestTermLog(t *testing.T) {
 	got, _ := os.ReadFile(p)
 	if want := "ok line\nprogress 99%\nac\nприв\n"; string(got) != want {
 		t.Fatalf("log = %q, want %q", got, want)
+	}
+}
+
+func TestEditorAndWatch(t *testing.T) {
+	got, err := parseEditorCommand(`"C:\Program Files\Code\code.exe" --wait -n 'a b'`)
+	if err != nil || len(got) != 4 || got[0] != `C:\Program Files\Code\code.exe` || got[3] != "a b" {
+		t.Fatalf("parse = %q, %v", got, err)
+	}
+	if _, err := parseEditorCommand(`vim "x`); err == nil {
+		t.Fatal("unmatched quote accepted")
+	}
+
+	p := filepath.Join(t.TempDir(), "f.txt")
+	os.WriteFile(p, []byte("v1"), 0o644)
+	events := make(chan string, 4)
+	var w fileWatch
+	w.watch(p, func(ev string, args ...any) { events <- ev + ":" + fmt.Sprint(args...) })
+	defer w.unwatch()
+	time.Sleep(600 * time.Millisecond)
+	os.WriteFile(p, []byte("v2"), 0o644)
+	os.Chtimes(p, time.Now().Add(time.Second), time.Now().Add(time.Second))
+	select {
+	case ev := <-events:
+		if ev != "file-change:v2" {
+			t.Fatalf("event = %q", ev)
+		}
+	case <-time.After(3 * time.Second):
+		t.Fatal("no file-change event")
+	}
+}
+
+func TestSystemFonts(t *testing.T) {
+	fonts := systemFonts()
+	if runtime.GOOS == "windows" && !slices.Contains(fonts, "Arial") {
+		t.Fatalf("Arial missing from %d fonts: %v", len(fonts), fonts[:min(10, len(fonts))])
 	}
 }
