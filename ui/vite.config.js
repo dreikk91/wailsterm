@@ -10,9 +10,16 @@ const { version } = JSON.parse(readFileSync(resolve(root, 'package.json'), 'utf8
 const out = resolve(root, 'dist')
 
 // electerm's build hardcodes the desktop (non web-app) code paths the same way.
+// Exception: web tabs. WebView2 has no Electron <webview> tag, so web-session.jsx keeps its
+// web-app branch, which renders the page in an <iframe>.
 function replaceWebAppPlugin () {
   return {
     name: 'replace-webapp',
+    transform (code, id) {
+      if (id.replace(/\\/g, '/').endsWith('/components/web/web-session.jsx')) {
+        return { code: code.replace(/window\.et\.isWebApp/g, 'true'), map: null }
+      }
+    },
     renderChunk (code) {
       const newCode = code.replace(/window\.et\.isWebApp/g, 'false')
       return newCode !== code ? { code: newCode, map: null } : null

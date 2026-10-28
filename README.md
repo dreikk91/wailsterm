@@ -13,7 +13,7 @@ Ported: local terminal (ConPTY/pty); SSH with password, private key (inline or p
 prompts, ssh-agent (Windows OpenSSH pipe / SSH_AUTH_SOCK) and agent forwarding, host key confirmation against
 ~/.ssh/known_hosts, jump hosts (connection hopping), socks5/http proxies, tunnels (local, remote, dynamic SOCKS),
 keepalive; telnet; serial; FTP/FTPS; VNC (noVNC bridge) and RDP (RDCleanPath proxy for the IronRDP client),
-both also via proxy/jump hosts; trzsz (trz/tsz) in any
+both also via proxy/jump hosts; SPICE (per-channel bridge, TLS with CA and host-subject checks); web tabs (iframe); trzsz (trz/tsz) in any
 terminal, plus rz/sz where a local lrzsz is installed; SFTP file manager with upload/download/pause/resume; local
 file manager; terminal session logs; ~/.ssh/config import; terminal theme catalog; font list; external editor;
 settings sync (GitHub/Gitee gist, custom server, electerm cloud, WebDAV; encryption compatible with electerm);
@@ -21,7 +21,7 @@ AI assistant (OpenAI chat/responses and Anthropic formats, streaming); built-in 
 FTP server, SSH server, file renamer, batch operation); bookmarks, settings, themes, quick commands and the rest of the UI state
 (encrypted at rest with DPAPI on Windows), seeded with electerm's first-run defaults.
 
-Not ported yet (hidden or inert in the UI): SPICE, web tabs, socks4 proxy, X11 forwarding, built-in
+Not ported yet (hidden or inert in the UI): socks4 proxy, X11 forwarding, built-in
 zmodem (needs a native Go implementation; today it relies on a local lrzsz) and xmodem, the MCP server widget,
 user widgets (they are Node.js modules), auto-upgrade.
 
