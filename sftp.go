@@ -134,9 +134,23 @@ func copyTree(src, dst fsys, from, to string, p *progress) error {
 	return w.Close()
 }
 
+// remoteOps is the remote side of the file manager: SFTP (remoteFS) or FTP (ftpFS).
+type remoteOps interface {
+	fsys
+	Remove(p string) error
+	RemoveAll(p string) error
+	Rename(from, to string) error
+	Getwd() (string, error)
+	RealPath(p string) (string, error)
+}
+
 type sftpSess struct {
 	terminalID string
-	c          *sftp.Client
+	kind       string // "sftp" or "ftp"
+	opts       opts   // FTP connect options, reused to open per-transfer connections
+	r          remoteOps
+	c          *sftp.Client // SFTP only
+	closer     io.Closer
 }
 
 var (
@@ -144,13 +158,23 @@ var (
 	sftps  = map[string]*sftpSess{}
 )
 
-func getSftp(id string) *sftp.Client {
+// transferFS returns the remote filesystem for a transfer and what to close afterwards.
+// FTP transfers get their own connection so listings stay responsive meanwhile.
+func transferFS(id string) (fsys, io.Closer, error) {
 	sftpMu.Lock()
-	defer sftpMu.Unlock()
-	if s := sftps[id]; s != nil {
-		return s.c
+	sess := sftps[id]
+	sftpMu.Unlock()
+	if sess == nil || sess.r == nil {
+		return nil, nil, errors.New("no sftp session")
 	}
-	return nil
+	if sess.kind == "ftp" {
+		f, err := dialFTP(sess.opts)
+		if err != nil {
+			return nil, nil, err
+		}
+		return f, f, nil
+	}
+	return sess.r, nil, nil
 }
 
 func rights(perm fs.FileMode, shift uint) string {
@@ -198,6 +222,15 @@ func shQuote(s string) string { return "'" + strings.ReplaceAll(s, "'", `'\''`) 
 
 func (s *Server) sftpFunc(sess *sftpSess, fn string, args []any) (any, error) {
 	if fn == "connect" {
+		if sess.kind == "ftp" {
+			sess.opts = hopOpts(arg0(args))
+			f, err := dialFTP(sess.opts)
+			if err != nil {
+				return nil, err
+			}
+			sess.r, sess.closer = f, f
+			return "ok", nil
+		}
 		t := s.term(sess.terminalID)
 		if t == nil || t.client == nil {
 			return nil, errors.New("terminal is not an SSH session")
@@ -206,17 +239,17 @@ func (s *Server) sftpFunc(sess *sftpSess, fn string, args []any) (any, error) {
 		if err != nil {
 			return nil, err
 		}
-		sess.c = c
+		sess.c, sess.r, sess.closer = c, remoteFS{c}, c
 		return "ok", nil
 	}
-	c := sess.c
-	if c == nil {
-		return nil, errors.New("sftp not connected")
+	r, c := sess.r, sess.c
+	if r == nil {
+		return nil, errors.New("not connected")
 	}
 	p := argStr(args, 0)
 	switch fn {
 	case "list":
-		infos, err := c.ReadDir(p)
+		infos, err := r.ReadDir(p)
 		if err != nil {
 			return nil, err
 		}
@@ -226,50 +259,68 @@ func (s *Server) sftpFunc(sess *sftpSess, fn string, args []any) (any, error) {
 		}
 		return out, nil
 	case "getHomeDir":
-		return c.Getwd()
+		return r.Getwd()
 	case "realpath":
 		if p == "" {
 			p = "."
 		}
-		return c.RealPath(p)
+		return r.RealPath(p)
 	case "readlink":
+		if c == nil {
+			return p, nil
+		}
 		return c.ReadLink(p)
 	case "stat", "lstat":
 		var fi os.FileInfo
 		var err error
-		if fn == "stat" {
-			fi, err = c.Stat(p)
-		} else {
+		if fn == "lstat" && c != nil {
 			fi, err = c.Lstat(p)
+		} else {
+			fi, err = r.Stat(p)
 		}
 		if err != nil {
 			return nil, err
 		}
 		return sftpStat(fi), nil
 	case "mkdir":
-		return 1, c.Mkdir(p)
+		if c != nil {
+			return 1, c.Mkdir(p)
+		}
+		return 1, r.MkdirAll(p)
 	case "rmdir":
-		return 1, c.RemoveAll(p)
+		return 1, r.RemoveAll(p)
 	case "rm":
-		return 1, c.Remove(p)
+		return 1, r.Remove(p)
 	case "touch":
-		f, err := c.Create(p)
+		f, err := r.Create(p)
 		if err != nil {
 			return nil, err
 		}
 		return 1, f.Close()
 	case "chmod":
+		if c == nil {
+			return 1, nil // FTP has no portable chmod; electerm ignores it too
+		}
 		return 1, c.Chmod(p, fs.FileMode(argNum(args, 1)))
 	case "rename", "mv":
-		return 1, c.Rename(p, argStr(args, 1))
+		return 1, r.Rename(p, argStr(args, 1))
 	case "cp":
-		out, err := s.runCmd(sess.terminalID, "cp -r "+shQuote(p)+" "+shQuote(argStr(args, 1)))
-		if err != nil {
-			return nil, fmt.Errorf("%v: %s", err, out)
+		if c != nil {
+			out, err := s.runCmd(sess.terminalID, "cp -r "+shQuote(p)+" "+shQuote(argStr(args, 1)))
+			if err != nil {
+				return nil, fmt.Errorf("%v: %s", err, out)
+			}
+			return 1, nil
 		}
-		return 1, nil
+		// FTP: stream through a second connection, like session-ftp.js copyFile
+		other, err := dialFTP(sess.opts)
+		if err != nil {
+			return nil, err
+		}
+		defer other.Close()
+		return 1, copyTree(r, other, p, argStr(args, 1), &progress{ctx: context.Background(), emit: func(bool) {}})
 	case "readFile":
-		f, err := c.Open(p)
+		f, err := r.Open(p)
 		if err != nil {
 			return nil, err
 		}
@@ -277,7 +328,7 @@ func (s *Server) sftpFunc(sess *sftpSess, fn string, args []any) (any, error) {
 		b, err := io.ReadAll(f)
 		return string(b), err
 	case "writeFile":
-		f, err := c.Create(p)
+		f, err := r.Create(p)
 		if err != nil {
 			return nil, err
 		}
@@ -285,10 +336,13 @@ func (s *Server) sftpFunc(sess *sftpSess, fn string, args []any) (any, error) {
 			f.Close()
 			return nil, err
 		}
-		if m := argNum(args, 2); m != 0 {
+		if err := f.Close(); err != nil {
+			return nil, err
+		}
+		if m := argNum(args, 2); m != 0 && c != nil {
 			c.Chmod(p, fs.FileMode(m))
 		}
-		return 1, f.Close()
+		return 1, nil
 	}
 	return nil, fmt.Errorf("invalid sftp function: %s", fn)
 }
@@ -303,8 +357,8 @@ func (s *Server) handleSftp(w http.ResponseWriter, r *http.Request) {
 	defer func() {
 		sftpMu.Lock()
 		for _, id := range ids {
-			if ss := sftps[id]; ss != nil && ss.c != nil {
-				ss.c.Close()
+			if ss := sftps[id]; ss != nil && ss.closer != nil {
+				ss.closer.Close()
 			}
 			delete(sftps, id)
 		}
@@ -315,7 +369,11 @@ func (s *Server) handleSftp(w http.ResponseWriter, r *http.Request) {
 		switch str(msg, "action") {
 		case "sftp-new":
 			sftpMu.Lock()
-			sftps[id] = &sftpSess{terminalID: str(msg, "terminalId")}
+			kind := "sftp"
+			if str(msg, "type") == "ftp" {
+				kind = "ftp"
+			}
+			sftps[id] = &sftpSess{terminalID: str(msg, "terminalId"), kind: kind}
 			sftpMu.Unlock()
 			ids = append(ids, id)
 		case "sftp-func":
@@ -351,12 +409,15 @@ func (s *Server) handleTransfer(w http.ResponseWriter, r *http.Request) {
 		id := str(msg, "id")
 		switch str(msg, "action") {
 		case "transfer-new":
-			c := getSftp(str(msg, "sftpId"))
-			if c == nil {
-				ws.send(map[string]any{"id": "transfer:err:" + id, "error": map[string]any{"message": "no sftp session"}})
+			remote, closer, err := transferFS(str(msg, "sftpId"))
+			if err != nil {
+				ws.send(map[string]any{"id": "transfer:err:" + id, "error": map[string]any{"message": err.Error()}})
 				return
 			}
-			var src, dst fsys = remoteFS{c}, localFS{}
+			if closer != nil {
+				go func() { <-ctx.Done(); closer.Close() }()
+			}
+			var src, dst fsys = remote, localFS{}
 			from, to := str(msg, "remotePath"), str(msg, "localPath")
 			switch str(msg, "type") {
 			case "download":

@@ -15,9 +15,12 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync"
+	"time"
 
 	"github.com/coder/websocket"
+	"golang.org/x/crypto/ssh"
 )
 
 //go:embed all:ui/dist
@@ -107,6 +110,7 @@ func (s *Server) routes() http.Handler {
 	mux.HandleFunc("GET /terminals/{pid}", s.authed(s.handleTerminal))
 	mux.HandleFunc("GET /sftp/{id}", s.authed(s.handleSftp))
 	mux.HandleFunc("GET /transfer/{id}", s.authed(s.handleTransfer))
+	mux.HandleFunc("GET /vnc/{pid}", s.authed(s.handleVNC))
 	// Requests must name our exact host:port, which defeats DNS rebinding from web pages.
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Host != s.addr {
@@ -164,7 +168,7 @@ func (s *Server) index(w http.ResponseWriter, r *http.Request) {
 		"disableUpgradeCheck": true,
 		"hasNodePty":          true,
 		// session types the Go backend implements; the bookmark form hides the rest
-		"supportSessionTypes": []string{"ssh", "telnet", "serial", "local"},
+		"supportSessionTypes": []string{"ssh", "telnet", "serial", "local", "ftp", "vnc"},
 	}
 	w.Header().Set("Content-Type", "text/html; charset=utf-8")
 	w.Header().Set("Cache-Control", "no-store")
@@ -370,6 +374,44 @@ func (s *Server) commonAction(ws *wsConn, msg map[string]any) {
 			}
 			return out, nil
 		}
+		_, port, _ := net.SplitHostPort(s.addr)
+		if o.str("termType") == "ftp" {
+			// FTP has no terminal: the file manager connects over /sftp (session-process.js skips create-terminal)
+			if str(msg, "action") == "test-terminal" {
+				f, err := dialFTP(o)
+				if err == nil {
+					f.Close()
+				}
+				ws.reply(id, true, err)
+				return
+			}
+			ws.reply(id, map[string]any{"pid": o.str("uid"), "port": port}, nil)
+			return
+		}
+		if o.str("termType") == "vnc" {
+			t, err := prepareVNC(o, ask)
+			if err == nil && str(msg, "action") == "test-terminal" {
+				var c net.Conn
+				if c, err = t.dial(); err == nil {
+					c.Close()
+				}
+				t.Close()
+				ws.reply(id, true, err)
+				return
+			}
+			if err != nil {
+				ws.reply(id, nil, err)
+				return
+			}
+			vncMu.Lock()
+			if old := vncTargets[o.str("uid")]; old != nil {
+				old.Close()
+			}
+			vncTargets[o.str("uid")] = t
+			vncMu.Unlock()
+			ws.reply(id, map[string]any{"pid": o.str("uid"), "port": port}, nil)
+			return
+		}
 		t, err := startSession(o, ask, func(m map[string]any) { ws.send(m) })
 		if err != nil {
 			ws.reply(id, nil, err)
@@ -399,20 +441,26 @@ func (s *Server) commonAction(ws *wsConn, msg map[string]any) {
 		}
 		s.terms[t.pid] = t
 		s.mu.Unlock()
-		_, port, _ := net.SplitHostPort(s.addr)
 		ws.reply(id, map[string]any{"pid": t.pid, "port": port}, nil)
 	case "resize-terminal":
 		if t := s.term(pid); t != nil {
 			t.resize(int(msg["cols"].(float64)), int(msg["rows"].(float64)))
 		}
 		ws.reply(id, "ok", nil)
-	case "run-cmd", "exec-cmd":
-		out, err := s.runCmd(pid, str(msg, "cmd"))
-		if str(msg, "action") == "exec-cmd" {
-			ws.reply(id, map[string]any{"stdout": out, "stderr": "", "code": 0}, err)
-		} else {
-			ws.reply(id, out, err)
+	case "run-cmd":
+		// electerm answers "" for sessions without an exec channel (terminal-api.js runCmd)
+		out := ""
+		if t := s.term(pid); t != nil && t.client != nil {
+			out, _ = s.runCmd(pid, str(msg, "cmd"))
 		}
+		ws.reply(id, out, nil)
+	case "exec-cmd":
+		timeout := 120 * time.Second
+		if ms, ok := msg["timeoutMs"].(float64); ok && ms > 0 {
+			timeout = time.Duration(ms) * time.Millisecond
+		}
+		res, err := s.execCmd(pid, str(msg, "cmd"), timeout)
+		ws.reply(id, res, err)
 	case "fs":
 		args, _ := msg["args"].([]any)
 		data, err := fsCall(str(msg, "func"), args)
@@ -441,6 +489,44 @@ func (s *Server) runCmd(pid, cmd string) (string, error) {
 	defer sess.Close()
 	out, err := sess.CombinedOutput(cmd)
 	return string(out), err
+}
+
+// execCmd is session-common.js execCommand: separate streams, the real exit code, optional timeout.
+func (s *Server) execCmd(pid, cmd string, timeout time.Duration) (map[string]any, error) {
+	t := s.term(pid)
+	if t == nil || t.client == nil {
+		return nil, errors.New("exec channel not supported for this session type")
+	}
+	sess, err := t.client.NewSession()
+	if err != nil {
+		return nil, err
+	}
+	defer sess.Close()
+	var out, errOut strings.Builder
+	sess.Stdout, sess.Stderr = &out, &errOut
+	done := make(chan error, 1)
+	go func() { done <- sess.Run(cmd) }()
+	var exitCode any
+	timedOut := false
+	select {
+	case err := <-done:
+		var ee *ssh.ExitError
+		switch {
+		case err == nil:
+			exitCode = 0
+		case errors.As(err, &ee):
+			exitCode = ee.ExitStatus()
+		default:
+			var missing *ssh.ExitMissingError
+			if !errors.As(err, &missing) {
+				return nil, err
+			}
+		}
+	case <-time.After(timeout):
+		timedOut = true
+		sess.Close()
+	}
+	return map[string]any{"stdout": out.String(), "stderr": errOut.String(), "exitCode": exitCode, "timedOut": timedOut}, nil
 }
 
 // handleTerminal is session-server.js's /terminals/:pid: raw output out, keystrokes in.

@@ -127,6 +127,9 @@ func TestSSHSessionAndSftp(t *testing.T) {
 	if out, err := s.runCmd("t1", "true"); err != nil || out != "exec-ok" {
 		t.Fatalf("runCmd = %q, %v", out, err)
 	}
+	if r, err := s.execCmd("t1", "true", time.Second); err != nil || r["stdout"] != "exec-ok" || r["exitCode"] != 0 {
+		t.Fatalf("execCmd = %v, %v", r, err)
+	}
 
 	// SFTP functions in electerm's shapes
 	sess := &sftpSess{terminalID: "t1"}
