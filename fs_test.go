@@ -49,3 +49,32 @@ func TestDB(t *testing.T) {
 		t.Error("unknown table accepted")
 	}
 }
+
+func TestSeedDB(t *testing.T) {
+	d, _ := NewDB(t.TempDir())
+	// a bookmark saved by a build without seeding must be adopted by the default group
+	d.Action("bookmarks", "insert", []any{map[string]any{"_id": "orphan", "host": "h"}})
+	if err := seedDB(d, "1.0.0"); err != nil {
+		t.Fatal(err)
+	}
+	g, _ := d.Action("bookmarkGroups", "findOne", []any{map[string]any{"_id": "default"}})
+	ids := g.(map[string]any)["bookmarkIds"].([]any)
+	found := false
+	for _, id := range ids {
+		found = found || id == "orphan"
+	}
+	if !found {
+		t.Fatalf("default group ids = %v", ids)
+	}
+	qc, _ := d.Action("quickCommands", "find", []any{map[string]any{}})
+	themes, _ := d.Action("terminalThemes", "find", []any{map[string]any{}})
+	if len(qc.([]map[string]any)) < 10 || len(themes.([]map[string]any)) != 2 {
+		t.Fatalf("quick commands %d, themes %d", len(qc.([]map[string]any)), len(themes.([]map[string]any)))
+	}
+	// second run is a no-op
+	d.Action("bookmarkGroups", "remove", []any{map[string]any{"_id": "default"}, map[string]any{}})
+	seedDB(d, "1.0.0")
+	if g, _ := d.Action("bookmarkGroups", "findOne", []any{map[string]any{"_id": "default"}}); g != nil {
+		t.Fatal("seed ran twice")
+	}
+}

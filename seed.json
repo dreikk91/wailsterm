@@ -1,0 +1,86 @@
+{
+  "_source": "electerm src/app/upgrade/db-defaults.js and default-quick-commands.js (MIT)",
+  "terminalThemes": [
+    {
+      "_id": "default",
+      "name": "default",
+      "themeConfig": {
+        "foreground": "#bbbbbb", "background": "#141314", "cursor": "#b5bd68", "cursorAccent": "#1d1f21",
+        "selectionBackground": "rgba(200, 200, 200, 0.6)", "black": "#575757", "red": "#FF2C6D", "green": "#19f9d8",
+        "yellow": "#FFB86C", "blue": "#45A9F9", "magenta": "#FF75B5", "cyan": "#B084EB", "white": "#CDCDCD",
+        "brightBlack": "#757575", "brightRed": "#FF2C6D", "brightGreen": "#19f9d8", "brightYellow": "#FFCC95",
+        "brightBlue": "#6FC1FF", "brightMagenta": "#FF9AC1", "brightCyan": "#BCAAFE", "brightWhite": "#E6E6E6"
+      },
+      "uiThemeConfig": {
+        "main": "#141314", "main-dark": "#000", "main-light": "#2E3338", "text": "#ddd", "text-light": "#fff",
+        "text-dark": "#888", "text-disabled": "#777", "primary": "#08c", "info": "#FFD166", "success": "#06D6A0",
+        "error": "#EF476F", "warn": "#E55934"
+      }
+    },
+    {
+      "_id": "defaultLight",
+      "name": "default light",
+      "themeConfig": {
+        "foreground": "#333333", "background": "#ededed", "cursor": "#b5bd68", "cursorAccent": "#1d1f21",
+        "selectionBackground": "rgba(0, 0, 0, 0.3)", "black": "#575757", "red": "#FF2C6D", "green": "#19f9d8",
+        "yellow": "#FFB86C", "blue": "#45A9F9", "magenta": "#FF75B5", "cyan": "#B084EB", "white": "#CDCDCD",
+        "brightBlack": "#757575", "brightRed": "#FF2C6D", "brightGreen": "#19f9d8", "brightYellow": "#FFCC95",
+        "brightBlue": "#6FC1FF", "brightMagenta": "#FF9AC1", "brightCyan": "#BCAAFE", "brightWhite": "#E6E6E6"
+      },
+      "uiThemeConfig": {
+        "main": "#ededed", "main-dark": "#cccccc", "main-light": "#fefefe", "text": "#555", "text-light": "#777",
+        "text-dark": "#444", "text-disabled": "#888", "primary": "#08c", "info": "#FFD166", "success": "#06D6A0",
+        "error": "#EF476F", "warn": "#E55934"
+      }
+    }
+  ],
+  "quickCommands": {
+    "windows": [
+      ["default-qm-ls", "ls", "Get-ChildItem -Force | Format-Table -AutoSize", ["file"]],
+      ["default-qm-disk", "disk", "Get-Volume | Where-Object { $_.DriveLetter } | Format-Table DriveLetter, FileSystemLabel, FileSystem, HealthStatus, @{n='Size(GB)';e={[math]::Round($_.Size/1GB,1)}}, @{n='Free(GB)';e={[math]::Round($_.SizeRemaining/1GB,1)}} -AutoSize", ["disk"]],
+      ["default-qm-sysinfo", "sysinfo", "Get-CimInstance Win32_OperatingSystem | Format-List Caption, Version, BuildNumber, OSArchitecture", ["system"]],
+      ["default-qm-cpu", "cpu", "Get-CimInstance Win32_Processor | Format-List Name, NumberOfCores, NumberOfLogicalProcessors, MaxClockSpeed", ["system"]],
+      ["default-qm-mem", "mem", "Get-CimInstance Win32_OperatingSystem | Select-Object @{n='TotalGB';e={[math]::Round($_.TotalVisibleMemorySize/1MB,2)}}, @{n='FreeGB';e={[math]::Round($_.FreePhysicalMemory/1MB,2)}} | Format-List", ["system"]],
+      ["default-qm-ps", "ps", "Get-Process | Sort-Object CPU -Descending | Select-Object -First 20 Name, Id, CPU, WorkingSet", ["system"]],
+      ["default-qm-net", "net", "Get-NetIPAddress -AddressFamily IPv4 | Format-Table InterfaceAlias, IPAddress -AutoSize", ["network"]],
+      ["default-qm-ports", "ports", "Get-NetTCPConnection -State Listen | Sort-Object LocalPort | Select-Object LocalAddress, LocalPort, OwningProcess", ["network"]],
+      ["default-qm-ping", "ping", "ping -n 4 1.1.1.1", ["network"]],
+      ["default-qm-whoami", "whoami", "whoami; hostname; Get-Date", ["system"]],
+      ["default-qm-env", "env", "Get-ChildItem Env: | Sort-Object Name", ["system"]],
+      ["default-qm-git", "git", "git status -sb", ["git"]],
+      ["default-qm-docker", "docker", "docker ps", ["docker"]]
+    ],
+    "linux": [
+      ["default-qm-ls", "ls", "ls -alh", ["file"]],
+      ["default-qm-df", "df", "df -h", ["disk"]],
+      ["default-qm-du", "du", "du -sh * | sort -h", ["disk", "file"]],
+      ["default-qm-sysinfo", "sysinfo", "uname -a && cat /etc/os-release", ["system"]],
+      ["default-qm-cpu", "cpu", "nproc && grep -m1 \"model name\" /proc/cpuinfo", ["system"]],
+      ["default-qm-mem", "mem", "free -h", ["system"]],
+      ["default-qm-top", "top", "top", ["system"]],
+      ["default-qm-ps", "ps", "ps aux", ["system"]],
+      ["default-qm-net", "net", "ip -brief addr || ifconfig", ["network"]],
+      ["default-qm-ports", "ports", "ss -tulpn || netstat -tulpn", ["network"]],
+      ["default-qm-ping", "ping", "ping -c 4 1.1.1.1", ["network"]],
+      ["default-qm-whoami", "whoami", "whoami; hostname; uptime", ["system"]],
+      ["default-qm-git", "git", "git status -sb", ["git"]],
+      ["default-qm-docker", "docker", "docker ps", ["docker"]]
+    ],
+    "darwin": [
+      ["default-qm-ls", "ls", "ls -alh", ["file"]],
+      ["default-qm-df", "df", "df -h", ["disk"]],
+      ["default-qm-du", "du", "du -sh * | sort -h", ["disk", "file"]],
+      ["default-qm-sysinfo", "sysinfo", "sw_vers && uname -a", ["system"]],
+      ["default-qm-cpu", "cpu", "sysctl -n machdep.cpu.brand_string && sysctl -n hw.ncpu", ["system"]],
+      ["default-qm-mem", "mem", "top -l 1 -s 0 | grep -E \"PhysMem|Load Avg\" || vm_stat | head -6", ["system"]],
+      ["default-qm-top", "top", "top", ["system"]],
+      ["default-qm-ps", "ps", "ps aux", ["system"]],
+      ["default-qm-net", "net", "ifconfig | grep -E \"^[a-z0-9]+:|inet \"", ["network"]],
+      ["default-qm-ports", "ports", "lsof -iTCP -sTCP:LISTEN -P -n", ["network"]],
+      ["default-qm-ping", "ping", "ping -c 4 1.1.1.1", ["network"]],
+      ["default-qm-whoami", "whoami", "whoami; hostname; uptime", ["system"]],
+      ["default-qm-git", "git", "git status -sb", ["git"]],
+      ["default-qm-docker", "docker", "docker ps", ["docker"]]
+    ]
+  }
+}

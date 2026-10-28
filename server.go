@@ -66,6 +66,9 @@ func NewServer() (*Server, error) {
 	}
 	var pkg struct{ Version string }
 	json.Unmarshal(uiPackage, &pkg)
+	if err := seedDB(db, pkg.Version); err != nil {
+		return nil, fmt.Errorf("seed database: %w", err)
+	}
 	return &Server{
 		token:   newID() + newID(),
 		version: pkg.Version,
