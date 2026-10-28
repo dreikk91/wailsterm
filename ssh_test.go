@@ -40,7 +40,7 @@ func testSSHServer(t *testing.T) (host string, port int) {
 				return
 			}
 			go func() {
-				_, chans, reqs, err := ssh.NewServerConn(nc, cfg)
+				sconn, chans, reqs, err := ssh.NewServerConn(nc, cfg)
 				if err != nil {
 					return
 				}
@@ -71,6 +71,24 @@ func testSSHServer(t *testing.T) (host string, port int) {
 							case "subsystem":
 								req.Reply(true, nil)
 								go func() { srv, _ := sftp.NewServer(ch); srv.Serve(); ch.Close() }()
+							case "x11-req": // a remote X client: ping the forwarded display, report in the shell
+								req.Reply(true, nil)
+								go func() {
+									xc, xreqs, err := sconn.OpenChannel("x11", ssh.Marshal(struct {
+										H string
+										P uint32
+									}{"127.0.0.1", 0}))
+									if err != nil {
+										return
+									}
+									go ssh.DiscardRequests(xreqs)
+									xc.Write([]byte("ping"))
+									b := make([]byte, 4)
+									if _, err := io.ReadFull(xc, b); err == nil && string(b) == "pong" {
+										ch.Write([]byte("x11-ok"))
+									}
+									xc.Close()
+								}()
 							case "shell":
 								req.Reply(true, nil)
 								go io.Copy(ch, ch)

@@ -451,6 +451,17 @@ func startSSH(o opts, ask interactor, notify func(map[string]any)) (*Term, error
 	if o["agentForward"] == true {
 		agent.RequestAgentForwarding(sess)
 	}
+	if o["x11"] == true {
+		err := startX11(client, sess, func(msg string) {
+			if notify != nil {
+				notify(map[string]any{"action": "x11-warning", "message": msg, "url": x11HelpURL, "tabId": o.str("srcTabId")})
+			}
+		})
+		if err != nil {
+			closeAll()
+			return nil, err
+		}
+	}
 	if lang := o.str("envLang"); lang != "" {
 		sess.Setenv("LANG", lang)
 	}
