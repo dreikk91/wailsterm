@@ -6,64 +6,7 @@
     <title>wailsterm</title>
 </head>
 <body>
-<aside id="sidebar">
-    <button id="new-local">+ Local terminal</button>
-
-    <h3>Bookmarks</h3>
-    <input id="bm-filter" placeholder="Filter…"/>
-    <ul id="bookmarks" class="list"></ul>
-
-    <details>
-        <summary>Bookmark editor</summary>
-        <form id="bm-form">
-            <input type="hidden" name="id"/>
-            <select name="type">
-                <option value="ssh">SSH</option>
-                <option value="telnet">Telnet</option>
-                <option value="serial">Serial</option>
-            </select>
-            <input name="title" placeholder="Title"/>
-            <input name="host" placeholder="Host / serial device" list="serial-ports" required/>
-            <datalist id="serial-ports"></datalist>
-            <input name="port" type="number" placeholder="Port / baud rate"/>
-            <input name="user" placeholder="User (SSH)"/>
-            <input name="password" type="password" placeholder="Password / passphrase"/>
-            <input name="keyPath" placeholder="Private key path (optional)"/>
-            <div class="row">
-                <button type="submit">Save</button>
-                <button type="button" id="bm-connect">Connect</button>
-                <button type="reset">Clear</button>
-            </div>
-        </form>
-    </details>
-
-    <h3>Quick commands</h3>
-    <ul id="quick" class="list"></ul>
-    <form id="qc-form" class="row">
-        <input name="name" placeholder="Name" required/>
-        <input name="cmd" placeholder="Command" required/>
-        <button type="submit">+</button>
-    </form>
-
-    <details>
-        <summary>Settings</summary>
-        <form id="settings">
-            <label>Font size <input name="fontSize" type="number" min="8" max="40"/></label>
-            <label>Font <input name="fontFamily"/></label>
-            <label>Theme
-                <select name="theme">
-                    <option value="dark">Dark</option>
-                    <option value="light">Light</option>
-                </select>
-            </label>
-            <label>Scrollback <input name="scrollback" type="number" min="100"/></label>
-        </form>
-    </details>
-</aside>
-<main>
-    <nav id="tabs"></nav>
-    <div id="terms"></div>
-</main>
-<script type="module" src="/src/main.ts"></script>
+<div id="root"></div>
+<script type="module" src="/src/main.tsx"></script>
 </body>
 </html>

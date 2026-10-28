@@ -22,6 +22,7 @@ export interface Bookmark {
 
 export interface FileEntry {
     "name": string;
+    "path": string;
     "size": number;
     "mode": string;
     "modTime": number;
@@ -30,5 +31,7 @@ export interface FileEntry {
 
 export interface Listing {
     "path": string;
+    "parent": string;
+    "sep": string;
     "entries": FileEntry[] | null;
 }

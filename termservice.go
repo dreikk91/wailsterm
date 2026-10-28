@@ -15,6 +15,7 @@ import (
 	"sync/atomic"
 
 	"github.com/aymanbagabas/go-pty"
+	"github.com/pkg/sftp"
 	"github.com/wailsapp/wails/v3/pkg/application"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/crypto/ssh/knownhosts"
@@ -32,7 +33,8 @@ type Bookmark struct {
 }
 
 type session struct {
-	client *ssh.Client // nil for local sessions
+	client *ssh.Client  // nil for non-SSH sessions
+	sftp   *sftp.Client // opened lazily by fs()
 	w      io.Writer
 	resize func(cols, rows int) error
 	close  func() error
@@ -228,7 +230,7 @@ func (t *TermService) Close(id string) {
 }
 
 // stores are the config files the frontend may read/write; the allowlist keeps names out of path traversal.
-var stores = map[string]bool{"bookmarks": true, "quickcommands": true, "settings": true}
+var stores = map[string]bool{"bookmarks": true, "quickcommands": true, "settings": true, "history": true}
 
 func storeFile(name string) (string, error) {
 	if !stores[name] {

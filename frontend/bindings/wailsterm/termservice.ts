@@ -14,6 +14,25 @@ export function Close(id: string): $CancellablePromise<void> {
 }
 
 /**
+ * FsList lists dir on the local disk (id "") or the session's server; empty dir means home.
+ */
+export function FsList(id: string, dir: string): $CancellablePromise<$models.Listing> {
+    return $Call.ByID(127041472, id, dir);
+}
+
+export function FsMkdir(id: string, p: string): $CancellablePromise<void> {
+    return $Call.ByID(2502599619, id, p);
+}
+
+export function FsRemove(id: string, p: string): $CancellablePromise<void> {
+    return $Call.ByID(1338216672, id, p);
+}
+
+export function FsRename(id: string, $from: string, to: string): $CancellablePromise<void> {
+    return $Call.ByID(304697146, id, $from, to);
+}
+
+/**
  * Load returns the raw JSON of a store, or "" if it was never saved.
  */
 export function Load(name: string): $CancellablePromise<string> {
@@ -49,37 +68,11 @@ export function SerialPorts(): $CancellablePromise<string[] | null> {
 }
 
 /**
- * SftpDownload asks for a local destination and copies the remote file there. Returns "" if cancelled.
+ * Transfer copies srcPaths (files or directories, recursively) into dstDir.
+ * upload=true copies local→remote, false copies remote→local. Progress is emitted as "transfer" events.
  */
-export function SftpDownload(id: string, remote: string): $CancellablePromise<string> {
-    return $Call.ByID(929393858, id, remote);
-}
-
-/**
- * SftpList lists dir; empty dir means the remote home directory.
- */
-export function SftpList(id: string, dir: string): $CancellablePromise<$models.Listing> {
-    return $Call.ByID(3283872398, id, dir);
-}
-
-export function SftpMkdir(id: string, p: string): $CancellablePromise<void> {
-    return $Call.ByID(3710012697, id, p);
-}
-
-export function SftpRemove(id: string, p: string): $CancellablePromise<void> {
-    return $Call.ByID(2616792054, id, p);
-}
-
-export function SftpRename(id: string, $from: string, to: string): $CancellablePromise<void> {
-    return $Call.ByID(679776732, id, $from, to);
-}
-
-/**
- * SftpUpload asks for local files and copies them into remoteDir. Returns the uploaded count.
- * ponytail: synchronous, no progress events; add a transfer queue for large files.
- */
-export function SftpUpload(id: string, remoteDir: string): $CancellablePromise<number> {
-    return $Call.ByID(2178818823, id, remoteDir);
+export function Transfer(id: string, upload: boolean, srcPaths: string[] | null, dstDir: string): $CancellablePromise<void> {
+    return $Call.ByID(2503265860, id, upload, srcPaths, dstDir);
 }
 
 export function Write(id: string, data: string): $CancellablePromise<void> {
