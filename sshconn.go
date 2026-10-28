@@ -253,6 +253,8 @@ func dialVia(proxyURL, addr string, timeout time.Duration) (net.Conn, error) {
 			return nil, err
 		}
 		return d.Dial("tcp", addr)
+	case "socks4", "socks4a":
+		return socks4Dial(u, addr, timeout)
 	case "http", "https":
 		c, err := net.DialTimeout("tcp", u.Host, timeout)
 		if err != nil {
@@ -288,6 +290,47 @@ func dialVia(proxyURL, addr string, timeout time.Duration) (net.Conn, error) {
 		return c, nil
 	}
 	return nil, fmt.Errorf("proxy type %q not supported", u.Scheme)
+}
+
+// socks4Dial sends a SOCKS4 CONNECT, or SOCKS4a (server-side DNS) when addr is not an IPv4 literal.
+func socks4Dial(u *url.URL, addr string, timeout time.Duration) (net.Conn, error) {
+	host, ps, err := net.SplitHostPort(addr)
+	if err != nil {
+		return nil, err
+	}
+	port, err := strconv.Atoi(ps)
+	if err != nil {
+		return nil, err
+	}
+	req := []byte{4, 1, byte(port >> 8), byte(port)}
+	ip := net.ParseIP(host).To4()
+	if ip == nil {
+		req = append(req, 0, 0, 0, 1)
+	} else {
+		req = append(req, ip...)
+	}
+	req = append(append(req, u.User.Username()...), 0)
+	if ip == nil {
+		req = append(append(req, host...), 0)
+	}
+	c, err := net.DialTimeout("tcp", u.Host, timeout)
+	if err != nil {
+		return nil, err
+	}
+	c.SetDeadline(time.Now().Add(timeout))
+	resp := make([]byte, 8)
+	if _, err = c.Write(req); err == nil {
+		_, err = io.ReadFull(c, resp)
+	}
+	if err == nil && resp[1] != 0x5a {
+		err = fmt.Errorf("socks4 proxy rejected the connection (code %d)", resp[1])
+	}
+	if err != nil {
+		c.Close()
+		return nil, err
+	}
+	c.SetDeadline(time.Time{})
+	return c, nil
 }
 
 // ---- connection: proxy -> jump hosts -> target ----

@@ -176,10 +176,14 @@ export function handleTerminalColorQuery (terminal, identifier, color, fallbackC
 }
 
 export function createRendererThemeConfig (themeConfig = {}, rendererType, visibleBackground) {
+  const rgb = parseColorToRgb(visibleBackground)
   return {
     ...themeConfig,
-    background: rendererType === 'webGL' && colorToOscRgb(visibleBackground)
-      ? visibleBackground
+    // DOM: fully transparent so electerm's CSS background shows through, but
+    // keep the visible colour's rgb, since xterm's minimumContrastRatio checks
+    // text against it (rgba(0,0,0,0) made it treat light themes as black)
+    background: rgb
+      ? rendererType === 'webGL' ? visibleBackground : `rgba(${rgb.join(',')},0)`
       : 'rgba(0,0,0,0)'
   }
 }

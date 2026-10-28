@@ -7,15 +7,18 @@ import {
   statusMap
 } from '../../common/constants'
 import {
-  Select
+  Select,
+  Drawer
 } from 'antd'
 import {
-  ReloadOutlined
+  ReloadOutlined,
+  FolderOutlined
 } from '@ant-design/icons'
 import message from '../common/message'
 import Modal from '../common/modal'
 import { copy, readClipboard } from '../../common/clipboard'
 import VncForm from './vnc-form'
+import Sftp from '../sftp/sftp-entry'
 import RemoteFloatControl from '../common/remote-float-control'
 import RemoteSessionShell from '../common/remote-session-shell'
 import './vnc.styl'
@@ -43,7 +46,9 @@ export default class VncSession extends PureComponent {
       loading: false,
       name: '',
       screens: [],
-      currentScreen: '0'
+      currentScreen: '0',
+      showFiles: false,
+      filesOpened: false
     }
   }
 
@@ -636,6 +641,36 @@ export default class VncSession extends PureComponent {
     )
   }
 
+  toggleFiles = () => {
+    this.setState(s => ({ showFiles: !s.showFiles, filesOpened: true }))
+  }
+
+  // TightVNC 2.x file transfer over its own connection (vncft.go); mounted on first
+  // open and kept, so the listing survives closing the drawer
+  renderFiles () {
+    if (!this.state.filesOpened) {
+      return null
+    }
+    const size = Math.round(window.innerHeight * 0.6)
+    return (
+      <Drawer
+        open={this.state.showFiles}
+        onClose={this.toggleFiles}
+        placement='bottom'
+        size={size}
+        zIndex={888}
+        title={e('fileManager')}
+        styles={{ body: { padding: 0 } }}
+      >
+        <Sftp
+          {...this.props.fileManagerProps}
+          width={window.innerWidth}
+          height={size - 56}
+        />
+      </Drawer>
+    )
+  }
+
   render () {
     const { loading } = this.state
     const floatProps = this.getControlProps()
@@ -649,6 +684,11 @@ export default class VncSession extends PureComponent {
         <ReloadOutlined
           onClick={this.handleReInit}
           className='mg2r mg1l pointer'
+        />
+        <FolderOutlined
+          onClick={this.toggleFiles}
+          className='mg2r pointer'
+          title={e('fileManager')}
         />
         {this.renderScreensSelect()}
         {this.renderInfo()}
@@ -669,7 +709,12 @@ export default class VncSession extends PureComponent {
         controlLeft={controlLeft}
         controlRight={controlRight}
         floatControl={<RemoteFloatControl {...floatProps} />}
-        overlay={this.renderConfirm()}
+        overlay={
+          <>
+            {this.renderConfirm()}
+            {this.renderFiles()}
+          </>
+        }
       >
         <div
           className='remote-session-fill vnc-session-mount'

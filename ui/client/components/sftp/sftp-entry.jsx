@@ -18,7 +18,6 @@ import {
   typeMap, maxSftpHistory, paneMap,
   fileTypeMap,
   terminalSerialType,
-  terminalFtpType,
   unexpectedPacketErrorDesc,
   sftpRetryInterval
 } from '../../common/constants'
@@ -117,7 +116,7 @@ export default class Sftp extends Component {
   }
 
   initFtpData = async () => {
-    this.type = 'ftp'
+    this.type = this.props.ftpType || 'ftp'
     const { tab } = this.props
     const { id } = tab
     const opts = clone({
@@ -263,9 +262,7 @@ export default class Sftp extends Component {
   isActive () {
     const { currentBatchTabId, pane, sshSftpSplitView } = this.props
     const { tab } = this.props
-    const isFtp = tab.type === terminalFtpType
-
-    return (currentBatchTabId === tab.id && (pane === paneMap.fileManager || sshSftpSplitView)) || isFtp
+    return (currentBatchTabId === tab.id && (pane === paneMap.fileManager || sshSftpSplitView)) || this.props.isFtp
   }
 
   updateKeyword = (keyword, type) => {

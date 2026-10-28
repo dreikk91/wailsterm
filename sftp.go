@@ -134,7 +134,7 @@ func copyTree(src, dst fsys, from, to string, p *progress) error {
 	return w.Close()
 }
 
-// remoteOps is the remote side of the file manager: SFTP (remoteFS) or FTP (ftpFS).
+// remoteOps is the remote side of the file manager: SFTP (remoteFS), FTP (ftpFS) or TightVNC (vncFS).
 type remoteOps interface {
 	fsys
 	Remove(p string) error
@@ -144,10 +144,23 @@ type remoteOps interface {
 	RealPath(p string) (string, error)
 }
 
+type remoteConn interface {
+	remoteOps
+	io.Closer
+}
+
+// dialRemote opens a standalone FTP or TightVNC file connection.
+func dialRemote(kind string, o opts) (remoteConn, error) {
+	if kind == "vnc" {
+		return dialVNCFT(o)
+	}
+	return dialFTP(o)
+}
+
 type sftpSess struct {
 	terminalID string
-	kind       string // "sftp" or "ftp"
-	opts       opts   // FTP connect options, reused to open per-transfer connections
+	kind       string // "sftp", "ftp" or "vnc"
+	opts       opts   // FTP/VNC connect options, reused to open per-transfer connections
 	r          remoteOps
 	c          *sftp.Client // SFTP only
 	closer     io.Closer
@@ -159,7 +172,7 @@ var (
 )
 
 // transferFS returns the remote filesystem for a transfer and what to close afterwards.
-// FTP transfers get their own connection so listings stay responsive meanwhile.
+// FTP and VNC transfers get their own connection so listings stay responsive meanwhile.
 func transferFS(id string) (fsys, io.Closer, error) {
 	sftpMu.Lock()
 	sess := sftps[id]
@@ -167,8 +180,8 @@ func transferFS(id string) (fsys, io.Closer, error) {
 	if sess == nil || sess.r == nil {
 		return nil, nil, errors.New("no sftp session")
 	}
-	if sess.kind == "ftp" {
-		f, err := dialFTP(sess.opts)
+	if sess.kind != "sftp" {
+		f, err := dialRemote(sess.kind, sess.opts)
 		if err != nil {
 			return nil, nil, err
 		}
@@ -222,9 +235,9 @@ func shQuote(s string) string { return "'" + strings.ReplaceAll(s, "'", `'\''`) 
 
 func (s *Server) sftpFunc(sess *sftpSess, fn string, args []any) (any, error) {
 	if fn == "connect" {
-		if sess.kind == "ftp" {
+		if sess.kind != "sftp" {
 			sess.opts = hopOpts(arg0(args))
-			f, err := dialFTP(sess.opts)
+			f, err := dialRemote(sess.kind, sess.opts)
 			if err != nil {
 				return nil, err
 			}
@@ -312,8 +325,8 @@ func (s *Server) sftpFunc(sess *sftpSess, fn string, args []any) (any, error) {
 			}
 			return 1, nil
 		}
-		// FTP: stream through a second connection, like session-ftp.js copyFile
-		other, err := dialFTP(sess.opts)
+		// FTP/VNC: stream through a second connection, like session-ftp.js copyFile
+		other, err := dialRemote(sess.kind, sess.opts)
 		if err != nil {
 			return nil, err
 		}
@@ -370,8 +383,8 @@ func (s *Server) handleSftp(w http.ResponseWriter, r *http.Request) {
 		case "sftp-new":
 			sftpMu.Lock()
 			kind := "sftp"
-			if str(msg, "type") == "ftp" {
-				kind = "ftp"
+			if t := str(msg, "type"); t == "ftp" || t == "vnc" {
+				kind = t
 			}
 			sftps[id] = &sftpSess{terminalID: str(msg, "terminalId"), kind: kind}
 			sftpMu.Unlock()

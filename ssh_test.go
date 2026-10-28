@@ -132,7 +132,7 @@ func TestSSHSessionAndSftp(t *testing.T) {
 	}
 
 	// SFTP functions in electerm's shapes
-	sess := &sftpSess{terminalID: "t1"}
+	sess := &sftpSess{terminalID: "t1", kind: "sftp"}
 	if r, err := s.sftpFunc(sess, "connect", nil); err != nil || r != "ok" {
 		t.Fatalf("connect = %v, %v", r, err)
 	}

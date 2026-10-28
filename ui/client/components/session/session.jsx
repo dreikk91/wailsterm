@@ -275,6 +275,12 @@ export default class SessionWrapper extends Component {
           <LazyBoundary>
             <VncSession
               {...rdpProps}
+              fileManagerProps={{
+                ...this.props,
+                ...pick(this, ['onChangePane', 'setCwd']),
+                isFtp: true,
+                ftpType: 'vnc'
+              }}
             />
           </LazyBoundary>
         )

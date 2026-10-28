@@ -30,6 +30,10 @@ export const initMixin = {
       mouseEventsRequireAlt: config.mouseEventsRequireAlt || false,
       fontFamily: tab.fontFamily || config.fontFamily,
       theme: tc,
+      // programs pick explicit colors (PSReadLine paints commands 37/97 white,
+      // 93 yellow); xterm.js shifts any that would be unreadable on the theme
+      // background, like VS Code's terminal (WCAG AA)
+      minimumContrastRatio: 4.5,
       allowTransparency: true,
       wordSeparator: config.terminalWordSeparator,
       cursorStyle: config.cursorStyle,

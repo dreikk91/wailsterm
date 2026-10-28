@@ -2,17 +2,19 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"io"
+	"net"
 	"net/http"
 	"net/url"
 	"strings"
 	"time"
 )
 
-// httpClient replaces axios + proxy-agent.js: http(s) and socks5 proxies, optional insecure TLS.
+// httpClient replaces axios + proxy-agent.js: http(s), socks4 and socks5 proxies, optional insecure TLS.
 func httpClient(proxy string, insecure bool, timeout time.Duration) (*http.Client, error) {
 	tr := http.DefaultTransport.(*http.Transport).Clone()
 	tr.Proxy = nil // like axios with proxy: false; only the explicit proxy is used
@@ -21,10 +23,16 @@ func httpClient(proxy string, insecure bool, timeout time.Duration) (*http.Clien
 		if err != nil {
 			return nil, fmt.Errorf("proxy: %w", err)
 		}
-		if !strings.HasPrefix(u.Scheme, "http") && !strings.HasPrefix(u.Scheme, "socks5") {
+		switch {
+		case strings.HasPrefix(u.Scheme, "socks4"): // net/http has no socks4
+			tr.DialContext = func(_ context.Context, _, addr string) (net.Conn, error) {
+				return dialVia(proxy, addr, 30*time.Second)
+			}
+		case strings.HasPrefix(u.Scheme, "http"), strings.HasPrefix(u.Scheme, "socks5"):
+			tr.Proxy = http.ProxyURL(u)
+		default:
 			return nil, fmt.Errorf("proxy type %q not supported", u.Scheme)
 		}
-		tr.Proxy = http.ProxyURL(u)
 	}
 	if insecure {
 		tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
