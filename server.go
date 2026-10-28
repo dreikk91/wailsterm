@@ -170,7 +170,13 @@ func (s *Server) index(w http.ResponseWriter, r *http.Request) {
 		"siteName":            "electerm",
 		"isDev":               false,
 		"tokenElecterm":       s.token,
-		"disableAIFeature":    true,
+		"disableAIFeature":    false,
+		// pug.js data: the free endpoint electerm preconfigures
+		"defaultAIPreset": map[string]any{
+			"baseURLAI": "https://ai.electerm.org/api/ai", "apiPathAI": "/chat/completions", "modelAI": "free",
+			"authHeaderNameAI": "Authorization: Bearer", "id": "ai.electerm.org", "nameAI": "ai.electerm.org",
+			"siteUrl": "https://ai.electerm.org?utm=electerm",
+		},
 		"disableUpgradeCheck": true,
 		"hasNodePty":          true,
 		// session types the Go backend implements; the bookmark form hides the rest

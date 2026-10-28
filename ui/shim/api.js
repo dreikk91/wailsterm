@@ -10,6 +10,7 @@
  * Locales ship with the UI bundle, so they are merged in here instead of in Go.
  */
 import * as locales from '@electerm/electerm-locales'
+import * as ai from './ai.js'
 
 const token = window.et.tokenElecterm
 const headers = { 'Content-Type': 'application/json', 'X-Token': token }
@@ -45,7 +46,8 @@ function runSync (name, ...args) {
 
 // answered from the UI bundle (electerm reads these npm packages in the main process)
 const localAsync = {
-  listItermThemes: async () => (await import('@electerm/electerm-themes/dist/index.mjs')).default
+  listItermThemes: async () => (await import('@electerm/electerm-themes/dist/index.mjs')).default,
+  ...ai
 }
 
 async function runGlobalAsync (name, ...args) {
