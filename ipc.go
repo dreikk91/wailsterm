@@ -253,7 +253,9 @@ func (s *Server) runAsync(name string, args []any) (any, error) {
 		return nil, nil
 	case "initCommandLine", "getPendingDeepLink", "getPendingVvFile":
 		return nil, nil
-	case "listWidgets", "loadFontList", "listItermThemes", "loadSshConfig":
+	case "loadSshConfig":
+		return loadSSHConfig(), nil
+	case "listWidgets", "loadFontList", "listItermThemes":
 		return []any{}, nil
 	case "listSerialPorts":
 		return listSerialPorts(), nil

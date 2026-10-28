@@ -9,12 +9,15 @@
   plus the `runSync` / `runGlobalAsync` IPC tables. It serves the UI on a random loopback port with a per-run
   token; the Wails window just loads that URL.
 
-Ported: local terminal (ConPTY/pty), SSH (password, private key, keyboard-interactive prompts, TOFU known_hosts,
-keepalive), telnet, serial, SFTP file manager with upload/download/pause/resume, local file manager, bookmarks,
-settings, themes, quick commands and the rest of the UI state (encrypted at rest with DPAPI on Windows).
+Ported: local terminal (ConPTY/pty); SSH with password, private key (inline or path), keyboard-interactive
+prompts, ssh-agent (Windows OpenSSH pipe / SSH_AUTH_SOCK) and agent forwarding, host key confirmation against
+~/.ssh/known_hosts, jump hosts (connection hopping), socks5/http proxies, tunnels (local, remote, dynamic SOCKS),
+keepalive; telnet; serial; SFTP file manager with upload/download/pause/resume; local file manager; terminal
+session logs; ~/.ssh/config import; bookmarks, settings, themes, quick commands and the rest of the UI state
+(encrypted at rest with DPAPI on Windows), seeded with electerm's first-run defaults.
 
-Not ported yet (hidden or inert in the UI): RDP, VNC, SPICE, FTP, web tabs, jump hosts/proxies, port forwarding,
-SSH agent, zmodem/trzsz/xmodem, terminal session logs, sync, widgets, AI, auto-upgrade.
+Not ported yet (hidden or inert in the UI): RDP, VNC, SPICE, FTP, web tabs, socks4 proxy, X11 forwarding,
+zmodem/trzsz/xmodem, sync, widgets, AI, auto-upgrade.
 
 Data lives in `<UserConfigDir>/wailsterm` (override with `WAILSTERM_DATA`).
 

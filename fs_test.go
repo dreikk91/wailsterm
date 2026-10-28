@@ -78,3 +78,20 @@ func TestSeedDB(t *testing.T) {
 		t.Fatal("seed ran twice")
 	}
 }
+
+func TestTermLog(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "s.log")
+	l, err := openTermLog(p, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// colors, an OSC title, a progress line rewritten with \r, a backspace, and a split UTF-8 rune
+	l.Write([]byte("\x1b[32mok\x1b[0m line\r\n\x1b]0;title\x07progress 10%\rprogress 99%\r\nab\bc\r\nпр"))
+	l.Write([]byte("и\xd0"))
+	l.Write([]byte("\xb2\n"))
+	l.Close()
+	got, _ := os.ReadFile(p)
+	if want := "ok line\nprogress 99%\nac\nприв\n"; string(got) != want {
+		t.Fatalf("log = %q, want %q", got, want)
+	}
+}

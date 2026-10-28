@@ -355,34 +355,22 @@ func (s *Server) commonAction(ws *wsConn, msg map[string]any) {
 	case "create-terminal", "test-terminal":
 		body, _ := msg["body"].(map[string]any)
 		o := opts(body)
-		ask := func(name, instruction string, qs []string, echos []bool) ([]string, error) {
-			prompts := make([]map[string]any, len(qs))
-			for i, q := range qs {
-				prompts[i] = map[string]any{"prompt": q, "echo": echos[i]}
-			}
-			instructions := []string{}
-			if instruction != "" {
-				instructions = append(instructions, instruction)
-			}
+		ask := func(options map[string]any) ([]string, error) {
 			qid := newID()
 			res, err := ws.ask(qid, map[string]any{
-				"id": qid, "action": "session-interactive", "tabId": o.str("tabId"),
-				"options": map[string]any{"name": name, "instructions": instructions, "prompts": prompts},
+				"id": qid, "action": "session-interactive", "tabId": o.str("tabId"), "options": options,
 			})
 			if err != nil {
 				return nil, err
 			}
-			results, _ := res["results"].([]any)
-			if len(results) == 0 {
-				return nil, errors.New("user cancel")
-			}
-			out := make([]string, len(results))
-			for i, v := range results {
-				out[i], _ = v.(string)
+			out := []string{}
+			for _, v := range asSlice(res["results"]) {
+				s, _ := v.(string)
+				out = append(out, s)
 			}
 			return out, nil
 		}
-		t, err := startSession(o, ask)
+		t, err := startSession(o, ask, func(m map[string]any) { ws.send(m) })
 		if err != nil {
 			ws.reply(id, nil, err)
 			return
@@ -393,6 +381,18 @@ func (s *Server) commonAction(ws *wsConn, msg map[string]any) {
 			return
 		}
 		t.pid = o.str("uid")
+		t.logDir, t.logName, t.logTS = o.str("sessionLogPath"), o.str("logName"), o["addTimeStampToTermLog"] == true
+		if t.logName == "" {
+			t.logName = t.pid
+		}
+		if t.logDir == "" {
+			t.logDir = filepath.Join(dataDir(), "session_logs")
+		}
+		if o["saveTerminalLogToFile"] == true {
+			if err := t.startLog(t.defaultLogPath()); err != nil {
+				log.Printf("session log: %v", err)
+			}
+		}
 		s.mu.Lock()
 		if old := s.terms[t.pid]; old != nil {
 			old.Close()
@@ -418,8 +418,11 @@ func (s *Server) commonAction(ws *wsConn, msg map[string]any) {
 		data, err := fsCall(str(msg, "func"), args)
 		ws.reply(id, data, err)
 	case "toggle-terminal-log", "toggle-terminal-log-timestamp", "set-terminal-log-path", "start-terminal-log-file":
-		// ponytail: terminal logging to file not ported yet
-		ws.reply(id, "ok", nil)
+		var err error
+		if t := s.term(pid); t != nil {
+			err = t.logAction(str(msg, "action"), msg)
+		}
+		ws.reply(id, "ok", err)
 	default:
 		ws.reply(id, nil, fmt.Errorf("action %q not supported", str(msg, "action")))
 	}
@@ -469,6 +472,7 @@ func (s *Server) handleTerminal(w http.ResponseWriter, r *http.Request) {
 		for {
 			n, err := t.out.Read(buf)
 			if n > 0 {
+				t.logWrite(buf[:n])
 				if ws.c.Write(ctx, websocket.MessageBinary, buf[:n]) != nil {
 					return
 				}
