@@ -8,7 +8,8 @@ import {
 } from '../../common/constants'
 import {
   Select,
-  Drawer
+  Drawer,
+  Progress
 } from 'antd'
 import {
   ReloadOutlined,
@@ -30,12 +31,33 @@ import './vnc.styl'
 // the sidebar's transfer progress is under the drawer's mask, so the drawer shows its own
 const DrawerTransfers = auto(function DrawerTransfers () {
   const { store } = window
+  const fileTransfers = deepCopy(store.fileTransfers)
+  const active = fileTransfers.find(t => t.inited)
   return (
-    <TransferList
-      fileTransfers={deepCopy(store.fileTransfers)}
-      transferHistory={deepCopy(store.transferHistory)}
-      transferTab={store.transferTab}
-    />
+    <>
+      {active && (
+        <span className='mg1r' style={{ display: 'flex', alignItems: 'center', width: 360, maxWidth: '40vw' }} title={active.fromPath}>
+          <span className='iblock elli' style={{ maxWidth: '45%', verticalAlign: 'middle' }}>
+            {active.fromPath?.split(/[\\/]/).pop()}
+          </span>
+          <Progress
+            percent={active.percent || 0}
+            size='small'
+            className='iblock mg1x'
+            style={{ width: 100, margin: 0, verticalAlign: 'middle' }}
+          />
+          <span className='mg1l' style={{ verticalAlign: 'middle' }}>
+            {active.speed}
+            {fileTransfers.length > 1 ? ` (+${fileTransfers.length - 1})` : ''}
+          </span>
+        </span>
+      )}
+      <TransferList
+        fileTransfers={fileTransfers}
+        transferHistory={deepCopy(store.transferHistory)}
+        transferTab={store.transferTab}
+      />
+    </>
   )
 })
 
@@ -685,10 +707,10 @@ export default class VncSession extends PureComponent {
         zIndex={888}
         title={e('fileManager')}
         extra={
-          <>
+          <div className='vnc-files-extra'>
             <DrawerTransfers />
             <FullIcon className='pointer mg1l' onClick={this.toggleFilesFull} />
-          </>
+          </div>
         }
         styles={{
           header: { padding: '4px 12px', minHeight: headerHeight, boxSizing: 'border-box' },
