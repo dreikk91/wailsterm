@@ -125,7 +125,19 @@ export default function SyncForm (props) {
       }
       form.setFieldsValue({ token })
       if (!form.getFieldValue('gistId')) {
-        const gist = await fetch({
+        // another device may already sync to a gist: reuse the latest one before creating a new, empty one
+        const list = await fetch({
+          action: 'fetch',
+          options: {
+            url: 'https://api.github.com/gists?per_page=100',
+            headers: { Authorization: 'token ' + token }
+          },
+          proxy
+        })
+        const found = (list || [])
+          .filter(g => g.description === 'sync electerm data' && g.files['bookmarks.json'])
+          .sort((a, b) => b.updated_at.localeCompare(a.updated_at))[0]
+        const gist = found || await fetch({
           type: syncTypes.github,
           action: 'sync',
           func: 'create',
