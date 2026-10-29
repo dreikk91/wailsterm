@@ -19,22 +19,25 @@ jobs:
           - os: windows-latest
             task: build
             pack: 7z a ../wailsterm-windows-amd64.zip wailsterm.exe
+            file: wailsterm-windows-amd64.zip
           - os: ubuntu-24.04
             task: task linux:create:appimage
             pack: tar czf ../wailsterm-linux-amd64.tar.gz wailsterm && mv wailsterm-x86_64.AppImage ../wailsterm-linux-x86_64.AppImage
+            file: wailsterm-linux-amd64.tar.gz
           - os: macos-latest
             task: package
             pack: ditto -c -k --keepParent wailsterm.app ../wailsterm-macos-arm64.zip
+            file: wailsterm-macos-arm64.zip
     runs-on: ${{ matrix.os }}
     defaults:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v5
+      - uses: actions/setup-go@v6
         with:
           go-version-file: go.mod
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
           cache: npm
@@ -45,25 +48,23 @@ jobs:
       - run: wails3 ${{ matrix.task }}
       - run: ${{ matrix.pack }}
         working-directory: bin
-      - uses: actions/upload-artifact@v4
+      # archive: false uploads the file as is (one file per step), so the run page does not zip it again
+      - uses: actions/upload-artifact@v7
         with:
-          name: ${{ matrix.os }}
-          path: |
-            wailsterm-*
-            !wailsterm-*.AppImage
-      # its own artifact, so the run page does not zip it together with the tarball
+          path: ${{ matrix.file }}
+          archive: false
       - if: runner.os == 'Linux'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
-          name: linux-appimage
-          path: wailsterm-*.AppImage
+          path: wailsterm-linux-x86_64.AppImage
+          archive: false
 
   release:
     if: startsWith(github.ref, 'refs/tags/v')
     needs: build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           merge-multiple: true
       - run: gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --generate-notes wailsterm-*
