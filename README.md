@@ -2,7 +2,7 @@
 
 [electerm](https://github.com/electerm/electerm) with its Node/Electron backend rewritten in Go, running in a Wails 3 window.
 
-- `ui/client` is electerm's `src/client` (MIT, see `ui/LICENSE.electerm`), unmodified except for the VNC file
+- `ui/client` is electerm's `src/client` (MIT, see `ui/LICENSE.electerm`), unmodified except for blank zero file times (`sftp/file-item.jsx`), the VNC file
   transfer drawer (`vnc/vnc-session.jsx`, `session/session.jsx`, `sftp/sftp-entry.jsx`), "Login with GitHub" (device flow) in
   `setting-sync/setting-sync-form.jsx`, and terminal text contrast
   on light themes (`terminal/mixins/term-init.js`, `terminal/terminal-color-query.mjs`).

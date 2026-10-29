@@ -1269,7 +1269,8 @@ export default class FileSection extends React.Component {
     } else if (id === 'mode') {
       value = permission2mode(mode2permission(value))
     } else if (id.toLowerCase().includes('time')) {
-      value = time(value)
+      // TightVNC sends 0 for folders: show nothing rather than 1970
+      value = value ? time(value) : ''
     }
     const divProps = {
       className: `sftp-file-prop noise shi-${id}`,
