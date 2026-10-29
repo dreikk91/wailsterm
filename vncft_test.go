@@ -83,7 +83,7 @@ func serveFakeTight(c net.Conn, password string, files map[string][]byte) {
 					body = binary.BigEndian.AppendUint64(body, uint64(len(d)))
 					body = binary.BigEndian.AppendUint64(body, 1700000000000)
 					body = binary.BigEndian.AppendUint16(body, flags)
-					body = append(binary.BigEndian.AppendUint32(body, uint32(len(name))), name...)
+					body = append(binary.BigEndian.AppendUint32(body, uint32(len(name)+1)), name+"\x00"...) // like TightVNC, NUL included
 					n++
 				}
 			}

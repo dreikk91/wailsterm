@@ -385,7 +385,8 @@ func (v *vncFS) ReadDir(p string) ([]os.FileInfo, error) {
 		if len(b) < 22+l {
 			return nil, io.ErrUnexpectedEOF
 		}
-		out = append(out, vncInfo{name: string(b[22 : 22+l]), size: int64(size), mtime: time.UnixMilli(int64(mtime)), dir: flags&1 != 0})
+		// TightVNC counts the C string's terminating NUL in the length; sent back, the server cuts the path there
+		out = append(out, vncInfo{name: strings.TrimRight(string(b[22:22+l]), "\x00"), size: int64(size), mtime: time.UnixMilli(int64(mtime)), dir: flags&1 != 0})
 		b = b[22+l:]
 	}
 	return out, nil

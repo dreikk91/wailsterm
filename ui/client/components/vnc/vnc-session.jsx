@@ -12,16 +12,32 @@ import {
 } from 'antd'
 import {
   ReloadOutlined,
-  FolderOutlined
+  FolderOutlined,
+  FullscreenOutlined,
+  FullscreenExitOutlined
 } from '@ant-design/icons'
+import { auto } from 'manate/react'
 import message from '../common/message'
 import Modal from '../common/modal'
 import { copy, readClipboard } from '../../common/clipboard'
 import VncForm from './vnc-form'
 import Sftp from '../sftp/sftp-entry'
+import TransferList from '../sidebar/transfer-list'
 import RemoteFloatControl from '../common/remote-float-control'
 import RemoteSessionShell from '../common/remote-session-shell'
 import './vnc.styl'
+
+// the sidebar's transfer progress is under the drawer's mask, so the drawer shows its own
+const DrawerTransfers = auto(function DrawerTransfers () {
+  const { store } = window
+  return (
+    <TransferList
+      fileTransfers={deepCopy(store.fileTransfers)}
+      transferHistory={deepCopy(store.transferHistory)}
+      transferTab={store.transferTab}
+    />
+  )
+})
 
 // noVNC module imports — loaded dynamically
 async function loadVncModule () {
@@ -48,7 +64,8 @@ export default class VncSession extends PureComponent {
       screens: [],
       currentScreen: '0',
       showFiles: false,
-      filesOpened: false
+      filesOpened: false,
+      filesFull: false
     }
   }
 
@@ -645,13 +662,20 @@ export default class VncSession extends PureComponent {
     this.setState(s => ({ showFiles: !s.showFiles, filesOpened: true }))
   }
 
+  toggleFilesFull = () => {
+    this.setState(s => ({ filesFull: !s.filesFull }))
+  }
+
   // TightVNC 2.x file transfer over its own connection (vncft.go); mounted on first
   // open and kept, so the listing survives closing the drawer
   renderFiles () {
     if (!this.state.filesOpened) {
       return null
     }
-    const size = Math.round(window.innerHeight * 0.6)
+    const { filesFull } = this.state
+    const size = Math.round(window.innerHeight * (filesFull ? 1 : 0.6))
+    const headerHeight = 33
+    const FullIcon = filesFull ? FullscreenExitOutlined : FullscreenOutlined
     return (
       <Drawer
         open={this.state.showFiles}
@@ -660,12 +684,22 @@ export default class VncSession extends PureComponent {
         size={size}
         zIndex={888}
         title={e('fileManager')}
-        styles={{ body: { padding: 0 } }}
+        extra={
+          <>
+            <DrawerTransfers />
+            <FullIcon className='pointer mg1l' onClick={this.toggleFilesFull} />
+          </>
+        }
+        styles={{
+          header: { padding: '4px 12px', minHeight: headerHeight, boxSizing: 'border-box' },
+          body: { padding: 0, overflow: 'hidden' }
+        }}
       >
+        {/* sftp's file list leaves 90px for a session footer the drawer does not have */}
         <Sftp
           {...this.props.fileManagerProps}
           width={window.innerWidth}
-          height={size - 56}
+          height={size - headerHeight + 90}
         />
       </Drawer>
     )
