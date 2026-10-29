@@ -333,6 +333,10 @@ func (s *Server) runAsync(name string, args []any) (any, error) {
 		return openDialog(asMap(arg0(args)))
 	case "saveDialog":
 		return saveDialog(asMap(arg0(args)))
+	case "githubDeviceCode":
+		return githubDeviceCode(argStr(args, 0))
+	case "githubDeviceToken":
+		return githubDeviceToken(argStr(args, 0), argNum(args, 1), argNum(args, 2), argStr(args, 3))
 	case "getElectermCommandStatus":
 		return map[string]any{"supported": false}, nil
 	case "openFileWithEditor":

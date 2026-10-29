@@ -10,6 +10,7 @@ import (
 	"hash"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 )
@@ -203,4 +204,72 @@ func webdavSync(fn string, args []any, token, proxy string) (any, error) {
 		return map[string]any{"files": files}, nil
 	}
 	return nil, fmt.Errorf("Unknown WebDAV function: %s", fn)
+}
+
+// githubClientID is the wailsterm OAuth App; device flow needs no client secret.
+const githubClientID = "Ov23liuBXezooraoMVN3"
+
+var githubOAuthBase = "https://github.com"
+
+func githubOAuthPost(path string, form url.Values, proxy string) (map[string]any, error) {
+	c, err := httpClient(proxy, false, 30*time.Second)
+	if err != nil {
+		return nil, err
+	}
+	form.Set("client_id", githubClientID)
+	req, err := http.NewRequest("POST", githubOAuthBase+path, strings.NewReader(form.Encode()))
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.Header.Set("Accept", "application/json")
+	resp, err := c.Do(req)
+	if err != nil {
+		return nil, err
+	}
+	defer resp.Body.Close()
+	var m map[string]any
+	if err := json.NewDecoder(resp.Body).Decode(&m); err != nil {
+		return nil, fmt.Errorf("GitHub returned %d: %w", resp.StatusCode, err)
+	}
+	return m, nil
+}
+
+// githubDeviceCode starts GitHub's device flow for a gist-scoped token:
+// {device_code, user_code, verification_uri, interval, expires_in}.
+func githubDeviceCode(proxy string) (any, error) {
+	m, err := githubOAuthPost("/login/device/code", url.Values{"scope": {"gist"}}, proxy)
+	if err != nil {
+		return nil, err
+	}
+	if e, ok := m["error"].(string); ok {
+		return nil, fmt.Errorf("GitHub: %s %v", e, m["error_description"])
+	}
+	return m, nil
+}
+
+// githubDeviceToken polls until the user approves the code in the browser, then returns the access token.
+func githubDeviceToken(deviceCode string, interval, expiresIn int, proxy string) (any, error) {
+	wait := time.Duration(max(interval, 5)) * time.Second
+	deadline := time.Now().Add(time.Duration(max(expiresIn, 60)) * time.Second)
+	for time.Now().Before(deadline) {
+		time.Sleep(wait)
+		m, err := githubOAuthPost("/login/oauth/access_token", url.Values{
+			"device_code": {deviceCode}, "grant_type": {"urn:ietf:params:oauth:grant-type:device_code"},
+		}, proxy)
+		if err != nil {
+			return nil, err
+		}
+		if t, ok := m["access_token"].(string); ok && t != "" {
+			return t, nil
+		}
+		switch m["error"] {
+		case "authorization_pending":
+		case "slow_down":
+			wait += 5 * time.Second
+		default:
+			return nil, fmt.Errorf("GitHub: %v %v", m["error"], m["error_description"])
+		}
+	}
+	return nil, fmt.Errorf("GitHub login code expired")
 }

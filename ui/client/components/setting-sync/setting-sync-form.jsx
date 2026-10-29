@@ -5,9 +5,10 @@
 /**
  * bookmark form
  */
-import { useEffect, useRef } from 'react'
-import { ArrowDownOutlined, ArrowUpOutlined, SaveOutlined, ClearOutlined } from '@ant-design/icons'
-import { Button, Input, Form, Alert } from 'antd'
+import { useEffect, useRef, useState } from 'react'
+import { ArrowDownOutlined, ArrowUpOutlined, SaveOutlined, ClearOutlined, GithubOutlined } from '@ant-design/icons'
+import { Button, Input, Form, Alert, Modal, Typography } from 'antd'
+import fetch from '../../common/fetch-from-server'
 import { notification } from '../common/notification'
 import SwitchLabel from '../common/switch'
 import Link from '../common/external-link'
@@ -37,6 +38,9 @@ export default function SyncForm (props) {
   const isHttp = typeof serverUrl === 'string' &&
     serverUrl.trim().toLowerCase().startsWith('http://')
   const prevRef = useRef(null)
+  // GitHub device flow (wailsterm): {user_code, verification_uri} while waiting for approval
+  const [ghLogin, setGhLogin] = useState(null)
+  const ghLoginRun = useRef(0)
 
   useEffect(() => {
     if (prevRef.current && !eq(prevRef.current, props.formData)) {
@@ -103,6 +107,85 @@ export default function SyncForm (props) {
     // if (!res.gistId && syncType !== syncTypes.custom && syncType !== syncTypes.cloud) {
     //   window.store.createGist(syncType)
     // }
+  }
+
+  async function githubLogin () {
+    const run = ++ghLoginRun.current
+    const proxy = form.getFieldValue('proxy') || ''
+    try {
+      const code = await window.pre.runGlobalAsync('githubDeviceCode', proxy)
+      setGhLogin(code)
+      window.pre.writeClipboard(code.user_code)
+      window.pre.openExternal(code.verification_uri)
+      const token = await window.pre.runGlobalAsync(
+        'githubDeviceToken', code.device_code, code.interval, code.expires_in, proxy
+      )
+      if (run !== ghLoginRun.current) {
+        return
+      }
+      form.setFieldsValue({ token })
+      if (!form.getFieldValue('gistId')) {
+        const gist = await fetch({
+          type: syncTypes.github,
+          action: 'sync',
+          func: 'create',
+          args: [{
+            description: 'sync electerm data',
+            public: false,
+            files: { 'electerm-status.json': { content: '{}' } }
+          }],
+          token,
+          proxy
+        })
+        form.setFieldsValue({ gistId: gist.id })
+      }
+      form.submit()
+    } catch (err) {
+      if (run === ghLoginRun.current) {
+        window.store.onError(err)
+      }
+    } finally {
+      if (run === ghLoginRun.current) {
+        setGhLogin(null)
+      }
+    }
+  }
+
+  function cancelGithubLogin () {
+    ghLoginRun.current++
+    setGhLogin(null)
+  }
+
+  function renderGithubLogin () {
+    if (syncType !== syncTypes.github) {
+      return null
+    }
+    return (
+      <>
+        <Button
+          className='mg1b'
+          icon={<GithubOutlined />}
+          onClick={githubLogin}
+          loading={!!ghLogin}
+        >
+          Login with GitHub
+        </Button>
+        <Modal
+          open={!!ghLogin}
+          title='Login with GitHub'
+          footer={null}
+          onCancel={cancelGithubLogin}
+        >
+          <p>Enter this code on the GitHub page that just opened (it is already in the clipboard):</p>
+          <Typography.Title level={2} copyable className='aligncenter'>
+            {ghLogin?.user_code}
+          </Typography.Title>
+          <p>
+            <Link to={ghLogin?.verification_uri || ''}>{ghLogin?.verification_uri}</Link>
+          </p>
+        </Modal>
+      </>
+    )
   }
 
   function upload () {
@@ -396,6 +479,7 @@ export default function SyncForm (props) {
       initialValues={props.formData}
     >
       {renderWarning()}
+      {renderGithubLogin()}
       {createUrlItem()}
       {createTokenItem()}
       {

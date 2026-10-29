@@ -3,7 +3,8 @@
 [electerm](https://github.com/electerm/electerm) with its Node/Electron backend rewritten in Go, running in a Wails 3 window.
 
 - `ui/client` is electerm's `src/client` (MIT, see `ui/LICENSE.electerm`), unmodified except for the VNC file
-  transfer drawer (`vnc/vnc-session.jsx`, `session/session.jsx`, `sftp/sftp-entry.jsx`) and terminal text contrast
+  transfer drawer (`vnc/vnc-session.jsx`, `session/session.jsx`, `sftp/sftp-entry.jsx`), "Login with GitHub" (device flow) in
+  `setting-sync/setting-sync-form.jsx`, and terminal text contrast
   on light themes (`terminal/mixins/term-init.js`, `terminal/terminal-color-query.mjs`).
 - `ui/shim/api.js` replaces Electron's preload bridge (`window.api`) with HTTP calls.
 - The Go side (`server.go`, `ipc.go`, `sessions.go`, `sftp.go`, `fsrpc.go`, `db.go`) implements the protocols

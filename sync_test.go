@@ -120,3 +120,39 @@ func TestSyncEncryptionMatchesElecterm(t *testing.T) {
 		t.Fatal("wrong password decrypted")
 	}
 }
+
+func TestGithubDeviceFlow(t *testing.T) {
+	polls := 0
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r.ParseForm()
+		if r.Form.Get("client_id") != githubClientID {
+			t.Errorf("client_id = %q", r.Form.Get("client_id"))
+		}
+		switch r.URL.Path {
+		case "/login/device/code":
+			io.WriteString(w, `{"device_code":"dc","user_code":"AB-CD","verification_uri":"https://github.com/login/device","interval":0,"expires_in":900}`)
+		case "/login/oauth/access_token":
+			if r.Form.Get("device_code") != "dc" {
+				t.Errorf("device_code = %q", r.Form.Get("device_code"))
+			}
+			if polls++; polls == 1 {
+				io.WriteString(w, `{"error":"authorization_pending"}`)
+				return
+			}
+			io.WriteString(w, `{"access_token":"gho_x","token_type":"bearer","scope":"gist"}`)
+		}
+	}))
+	defer srv.Close()
+	githubOAuthBase = srv.URL
+	defer func() { githubOAuthBase = "https://github.com" }()
+
+	code, err := githubDeviceCode("")
+	if err != nil || asMap(code)["user_code"] != "AB-CD" {
+		t.Fatal(code, err)
+	}
+	// ponytail: real 5s minimum poll interval, so this test takes ~10s
+	tok, err := githubDeviceToken("dc", 0, 900, "")
+	if err != nil || tok != "gho_x" || polls != 2 {
+		t.Fatal(tok, err, polls)
+	}
+}

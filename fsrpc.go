@@ -198,7 +198,10 @@ func fsCall(fn string, args []any) (any, error) {
 		if mode == 0 {
 			mode = 0o644
 		}
-		return os.WriteFile(p, []byte(argStr(args, 1)), mode) == nil, nil
+		if err := os.WriteFile(p, []byte(argStr(args, 1)), mode); err != nil {
+			return nil, err
+		}
+		return true, nil
 	case "openFile":
 		return nil, openPath(p)
 	case "getFolderSize":
