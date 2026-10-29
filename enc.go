@@ -62,7 +62,7 @@ func decryptSync(enc, password string) (string, error) {
 		}
 		plain, err := gcm.Open(nil, iv, append(ct, tag...), nil)
 		if err != nil {
-			return "", errors.New("unsupported state or unable to authenticate data")
+			return "", errors.New("cannot decrypt sync data: the sync encrypt password differs from the one used to upload")
 		}
 		return string(plain), nil
 	}

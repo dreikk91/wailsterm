@@ -473,6 +473,9 @@ func (w vncWriter) Close() error {
 }
 
 func (v *vncFS) Create(p string) (io.WriteCloser, error) {
+	if path.Dir(vncPath(p)) == "/" {
+		return nil, errors.New("\"/\" is the list of drives: open a drive or folder to copy files into")
+	}
 	v.mu.Lock()
 	if _, err := v.call(ftMsg(ftUploadStartReq, vncPath(p), uint8(1), uint64(0)), ftUploadStartReply); err != nil {
 		v.mu.Unlock()
@@ -521,7 +524,13 @@ func (v *vncFS) Rename(from, to string) error {
 	return v.do(ftMsg(ftRenameReq, vncPath(from), vncPath(to)), ftRenameReply)
 }
 
-func (v *vncFS) Getwd() (string, error) { return "/", nil }
+// Getwd starts on C: rather than the drive list, where nothing can be uploaded.
+func (v *vncFS) Getwd() (string, error) {
+	if _, err := v.ReadDir("/C:"); err == nil {
+		return "/C:", nil
+	}
+	return "/", nil
+}
 
 func (v *vncFS) RealPath(p string) (string, error) { return vncPath(p), nil }
 
