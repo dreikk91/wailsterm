@@ -172,7 +172,9 @@ func authMethods(o opts, ag agent.ExtendedAgent, ask interactor) ([]ssh.AuthMeth
 	if key != "" {
 		var signer ssh.Signer
 		var err error
-		if pass := o.str("passphrase"); pass != "" {
+		if strings.HasPrefix(key, ppkPrefix) {
+			signer, err = parsePPK([]byte(key), []byte(o.str("passphrase")))
+		} else if pass := o.str("passphrase"); pass != "" {
 			signer, err = ssh.ParsePrivateKeyWithPassphrase([]byte(key), []byte(pass))
 		} else {
 			signer, err = ssh.ParsePrivateKey([]byte(key))

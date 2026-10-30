@@ -477,8 +477,7 @@ export default class Sftp extends Component {
     const func = !isDirectory
       ? window.fs.unlink
       : window.fs.rmrf
-    const p = resolve(path, name)
-    await func(p).catch(window.store.onError)
+    await func(resolve(path, name))
   }
 
   remoteDel = async (file) => {
@@ -487,8 +486,7 @@ export default class Sftp extends Component {
     const func = isDirectory
       ? sftp.rmdir
       : sftp.rm
-    const p = resolve(path, name)
-    await func(p).catch(window.store.onError)
+    await func(resolve(path, name))
   }
 
   confirmDelete = (files) => {
@@ -521,7 +519,14 @@ export default class Sftp extends Component {
     }
     const type = files[0]?.type || _type
     const func = this[type + 'Del']
-    await Promise.all(files.map(f => func(f)))
+    // One notification for the whole batch, not one per file that failed
+    const failed = (await Promise.allSettled(files.map(f => func(f))))
+      .filter(r => r.status === 'rejected')
+    if (failed.length) {
+      const first = failed[0].reason?.message || String(failed[0].reason)
+      const more = failed.length > 1 ? ` (+${failed.length - 1} more)` : ''
+      window.store.onError(new Error(first + more))
+    }
     if (type === typeMap.remote) {
       await wait(500)
     }
