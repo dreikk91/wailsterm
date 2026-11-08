@@ -8,4 +8,10 @@ build/windows/nsis/MicrosoftEdgeWebview2Setup.exe
 build/ios/xcode/overlay.json
 build/ios/xcode/gen/
 build/android/overlay.json
-build/android/gen/.playwright-mcp
+build/android/gen/
+.playwright-mcp
+# Android build outputs
+build/android/.gradle/
+build/android/build/
+build/android/app/build/
+build/android/app/src/main/jniLibs/

@@ -74,6 +74,9 @@ func (s *Server) config() map[string]any {
 	for _, k := range []string{"_id", "hashedPassword", "salt"} {
 		delete(c, k)
 	}
+	if runtime.GOOS == "android" {
+		c["initDefaultTabOnStart"] = false // no local shell on Android
+	}
 	host, port, _ := net.SplitHostPort(s.addr)
 	c["host"], c["port"], c["tokenElecterm"] = host, port, s.token
 	return c

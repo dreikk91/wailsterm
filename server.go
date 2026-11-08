@@ -122,7 +122,7 @@ func (s *Server) routes() http.Handler {
 	mux.HandleFunc("GET /spice/{pid}", s.authed(s.handleSpice))
 	// Requests must name our exact host:port, which defeats DNS rebinding from web pages.
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.Host != s.addr {
+		if !s.hostOK(r.Host) {
 			http.Error(w, "bad host", http.StatusForbidden)
 			return
 		}
@@ -267,6 +267,19 @@ func (s *Server) Emit(event string, args ...any) {
 }
 
 // wsConn is a JSON WebSocket with electerm's request/response helpers (src/app/server/ws-dec.js).
+// hostOK takes our exact host:port, or, when listening on all interfaces
+// (WAILSTERM_ADDR=0.0.0.0:port), any IP literal on our port. IP literals only:
+// DNS rebinding needs a hostname, so it stays blocked.
+func (s *Server) hostOK(h string) bool {
+	if h == s.addr {
+		return true
+	}
+	lh, lp, _ := net.SplitHostPort(s.addr)
+	hh, hp, err := net.SplitHostPort(h)
+	ip := net.ParseIP(lh)
+	return err == nil && hp == lp && ip != nil && ip.IsUnspecified() && net.ParseIP(hh) != nil
+}
+
 type wsConn struct {
 	c       *websocket.Conn
 	ctx     context.Context

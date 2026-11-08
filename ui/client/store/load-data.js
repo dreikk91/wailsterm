@@ -277,7 +277,9 @@ export default (Store) => {
     store.exePath = globs.exePath
     store.isPortable = globs.isPortable
     store.widgetLogPath = globs.widgetLogPath || ''
-    store._config = globs.config
+    // the UI is same-origin with the backend, so sockets go where the page came
+    // from; the backend's own listen address may be 0.0.0.0
+    store._config = { ...globs.config, host: window.location.hostname }
     window.et.langs = globs.langs
     store.zoom(store.config.zoom, false, true)
     await initWsCommon()

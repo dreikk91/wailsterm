@@ -1,7 +1,9 @@
 package main
 
 import (
+	"fmt"
 	"log"
+	"net/http"
 
 	"github.com/wailsapp/wails/v3/pkg/application"
 )
@@ -26,6 +28,14 @@ func main() {
 		},
 		// widget servers (file/FTP/SSH) must not outlive the app
 		OnShutdown: srv.widgets.stopAll,
+		// Android's activity always opens Wails' own origin and ignores the window
+		// URL, so that origin just forwards to srv (loopback http is a secure context)
+		Assets: application.AssetOptions{
+			Handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "text/html")
+				fmt.Fprintf(w, `<script>location.replace(%q)</script>`, url)
+			}),
+		},
 	})
 
 	// The UI (electerm's client) is served by srv; the window simply loads it.

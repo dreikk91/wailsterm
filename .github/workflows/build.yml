@@ -24,10 +24,16 @@ jobs:
             task: task linux:create:appimage
             pack: tar czf ../wailsterm-linux-amd64.tar.gz wailsterm && mv wailsterm-x86_64.AppImage ../wailsterm-linux-x86_64.AppImage
             file: wailsterm-linux-amd64.tar.gz
+            linux: true
           - os: macos-latest
             task: package
             pack: ditto -c -k --keepParent wailsterm.app ../wailsterm-macos-arm64.zip
             file: wailsterm-macos-arm64.zip
+          # debug-signed, so it installs directly; the runner image ships the Android SDK and NDK
+          - os: ubuntu-24.04
+            task: task android:build ARCH=arm64 PRODUCTION=true && wails3 task android:assemble:apk
+            pack: mv wailsterm.apk ../wailsterm-android-arm64.apk
+            file: wailsterm-android-arm64.apk
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -42,7 +48,7 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: ui/package-lock.json
-      - if: runner.os == 'Linux'
+      - if: matrix.linux
         run: sudo apt-get update && sudo apt-get install -y build-essential pkg-config libgtk-4-dev libwebkitgtk-6.0-dev
       - run: go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0
       - run: wails3 ${{ matrix.task }}
@@ -53,7 +59,7 @@ jobs:
         with:
           path: ${{ matrix.file }}
           archive: false
-      - if: runner.os == 'Linux'
+      - if: matrix.linux
         uses: actions/upload-artifact@v7
         with:
           path: wailsterm-linux-x86_64.AppImage

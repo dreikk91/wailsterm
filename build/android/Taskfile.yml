@@ -4,7 +4,7 @@ includes:
   common: ../Taskfile.yml
 
 vars:
-  APP_ID: '{{.APP_ID | default "com.wails.app"}}'
+  APP_ID: '{{.APP_ID | default "com.wailsterm.app"}}'
   MIN_SDK: '21'
   TARGET_SDK: '35'
   # The emulator runs the host architecture; physical devices are arm64
@@ -76,6 +76,7 @@ tasks:
         case "$(uname -s)" in
           Darwin) HOST_TAG="darwin-x86_64" ;;
           Linux)  HOST_TAG="linux-x86_64" ;;
+          MINGW*|MSYS*|CYGWIN*|Windows*) HOST_TAG="windows-x86_64"; EXT=".cmd" ;;
           *)      echo "Unsupported host OS"; exit 1 ;;
         esac
 
@@ -84,14 +85,14 @@ tasks:
         # Set compiler based on architecture
         case "{{.ARCH}}" in
           arm64)
-            export CC="$TOOLCHAIN/bin/aarch64-linux-android{{.MIN_SDK}}-clang"
-            export CXX="$TOOLCHAIN/bin/aarch64-linux-android{{.MIN_SDK}}-clang++"
+            export CC="$TOOLCHAIN/bin/aarch64-linux-android{{.MIN_SDK}}-clang$EXT"
+            export CXX="$TOOLCHAIN/bin/aarch64-linux-android{{.MIN_SDK}}-clang++$EXT"
             export GOARCH=arm64
             JNI_DIR="arm64-v8a"
             ;;
           amd64|x86_64)
-            export CC="$TOOLCHAIN/bin/x86_64-linux-android{{.MIN_SDK}}-clang"
-            export CXX="$TOOLCHAIN/bin/x86_64-linux-android{{.MIN_SDK}}-clang++"
+            export CC="$TOOLCHAIN/bin/x86_64-linux-android{{.MIN_SDK}}-clang$EXT"
+            export CXX="$TOOLCHAIN/bin/x86_64-linux-android{{.MIN_SDK}}-clang++$EXT"
             export GOARCH=amd64
             JNI_DIR="x86_64"
             ;;
@@ -187,7 +188,7 @@ tasks:
         # The exec bit is lost when gradlew is extracted from the embedded
         # build assets, so restore it before invoking the wrapper.
         chmod +x ./gradlew
-        ./gradlew assembleDebug
+        sh ./gradlew assembleDebug
         cp app/build/outputs/apk/debug/app-debug.apk "../../{{.BIN_DIR}}/{{.APP_NAME}}.apk"
         echo "APK created: {{.BIN_DIR}}/{{.APP_NAME}}.apk"
 
@@ -202,7 +203,7 @@ tasks:
         # The exec bit is lost when gradlew is extracted from the embedded
         # build assets, so restore it before invoking the wrapper.
         chmod +x ./gradlew
-        ./gradlew assembleRelease
+        sh ./gradlew assembleRelease
         cp app/build/outputs/apk/release/app-release.apk "../../{{.BIN_DIR}}/{{.APP_NAME}}.apk"
         echo "Release APK created: {{.BIN_DIR}}/{{.APP_NAME}}.apk"
 
@@ -217,7 +218,7 @@ tasks:
         # The exec bit is lost when gradlew is extracted from the embedded
         # build assets, so restore it before invoking the wrapper.
         chmod +x ./gradlew
-        ./gradlew bundleDebug
+        sh ./gradlew bundleDebug
         cp app/build/outputs/bundle/debug/app-debug.aab "../../{{.BIN_DIR}}/{{.APP_NAME}}.aab"
         echo "AAB created: {{.BIN_DIR}}/{{.APP_NAME}}.aab"
 
@@ -241,7 +242,7 @@ tasks:
         # The exec bit is lost when gradlew is extracted from the embedded
         # build assets, so restore it before invoking the wrapper.
         chmod +x ./gradlew
-        ./gradlew bundleRelease
+        sh ./gradlew bundleRelease
         cp app/build/outputs/bundle/release/app-release.aab "../../{{.BIN_DIR}}/{{.APP_NAME}}.aab"
         echo "Release AAB created: {{.BIN_DIR}}/{{.APP_NAME}}.aab"
 
