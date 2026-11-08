@@ -1,0 +1,60 @@
+// touch control for vnc, see vnc-touch.jsx
+
+.vnc-session-mount
+  // gestures are ours, the browser must not pan or zoom the page
+  touch-action none
+
+// typed into while the soft keyboard is up; at the top so the browser never scrolls to it
+.vnc-touch-input
+  position fixed
+  top 0
+  left 0
+  width 1px
+  height 1px
+  opacity 0
+  border 0
+  padding 0
+  resize none
+  font-size 16px // smaller makes iOS zoom the page on focus
+
+.vnc-touch-kb-btn
+  position fixed
+  right 16px
+  bottom 16px
+  z-index 900
+  width 48px
+  height 48px
+  border-radius 50%
+  border 0
+  font-size 24px
+  color var(--text)
+  background var(--main-darker)
+  opacity 0.7
+  box-shadow 0 2px 8px rgba(0, 0, 0, 0.4)
+
+.vnc-touch-bar
+  position fixed
+  left 0
+  right 0
+  z-index 1000
+  display flex
+  gap 4px
+  padding 4px
+  box-sizing border-box
+  overflow-x auto
+  background var(--main-darker)
+  touch-action pan-x
+
+.vnc-touch-key
+  flex 0 0 auto
+  min-width 44px
+  padding 0 8px
+  border 0
+  border-radius 4px
+  color var(--text)
+  background var(--main)
+  font-size 14px
+  user-select none
+  &.active
+    color var(--main)
+    background var(--primary)

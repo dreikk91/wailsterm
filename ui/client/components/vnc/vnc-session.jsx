@@ -26,6 +26,7 @@ import Sftp from '../sftp/sftp-entry'
 import TransferList from '../sidebar/transfer-list'
 import RemoteFloatControl from '../common/remote-float-control'
 import RemoteSessionShell from '../common/remote-session-shell'
+import VncTouch, { isTouchDevice } from './vnc-touch'
 import './vnc.styl'
 
 // the sidebar's transfer progress is under the drawer's mask, so the drawer shows its own
@@ -386,6 +387,15 @@ export default class VncSession extends PureComponent {
         }
       }
       rfb._display._rescale(scaleRatio)
+    }
+
+    // pinch zoom (vnc-touch) multiplies whatever scale fitting picked
+    const fitAutoscale = rfb._display.autoscale
+    rfb._display.autoscale = (w, h) => {
+      fitAutoscale(w, h)
+      if (this.zoom > 1) {
+        rfb._display._rescale(rfb._display.scale * this.zoom)
+      }
     }
 
     const events = [
@@ -769,6 +779,7 @@ export default class VncSession extends PureComponent {
           <>
             {this.renderConfirm()}
             {this.renderFiles()}
+            {isTouchDevice() && <VncTouch session={this} />}
           </>
         }
       >
