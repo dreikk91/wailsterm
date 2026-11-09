@@ -85,6 +85,28 @@ export function charKeysym (ch) {
   return 0x01000000 | c
 }
 
+// Is this cursor image a text (I-beam) cursor? VNC has no word on what has
+// focus, but over a text field the server shows an I-beam. Looks at the opaque
+// silhouette: narrow, tall, and already near full width on its first row (the
+// serif), where a vertical resize arrow starts from a thin tip.
+export function isTextCursor (rgba, w, h) {
+  const rows = []
+  for (let y = 0; y < h; y++) {
+    let l = w
+    let r = -1
+    for (let x = 0; x < w; x++) {
+      if (rgba[(y * w + x) * 4 + 3] > 0) {
+        if (x < l) l = x
+        r = x
+      }
+    }
+    if (r >= 0) rows.push(r - l + 1)
+  }
+  if (rows.length < 12) return false
+  const max = Math.max(...rows)
+  return max <= 11 && rows.length >= 2 * max && rows[0] >= 0.6 * max
+}
+
 // what turns `prev` into `now`: `back` backspaces, then type `add` (code points)
 export function textDiff (prev, now) {
   const a = Array.from(prev)
@@ -328,6 +350,10 @@ export default class VncTouch extends PureComponent {
       // nothing
     } else if (g.n === 1 && !g.moved && quick) {
       this.click(1)
+      // tapped into a text field: bring the keyboard up (still inside the gesture)
+      if (this.props.session.textCursor && !this.state.kb) {
+        this.openKb()
+      }
     } else if (g.n === 2 && !g.mode && quick) {
       this.click(2)
     } else if (g.n === 3 && quick) {

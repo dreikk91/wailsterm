@@ -26,7 +26,7 @@ import Sftp from '../sftp/sftp-entry'
 import TransferList from '../sidebar/transfer-list'
 import RemoteFloatControl from '../common/remote-float-control'
 import RemoteSessionShell from '../common/remote-session-shell'
-import VncTouch, { isTouchDevice } from './vnc-touch'
+import VncTouch, { isTouchDevice, isTextCursor } from './vnc-touch'
 import './vnc.styl'
 
 // the sidebar's transfer progress is under the drawer's mask, so the drawer shows its own
@@ -439,6 +439,13 @@ export default class VncSession extends PureComponent {
     rfb.showDotCursor = showDotCursor
     this.vncViewOnly = viewOnly
     this.rfb = rfb
+
+    // vnc-touch opens the soft keyboard on a tap while the server shows a text cursor
+    const cursorChange = rfb._cursor.change.bind(rfb._cursor)
+    rfb._cursor.change = (rgba, hotx, hoty, w, h) => {
+      this.textCursor = isTextCursor(rgba, w, h)
+      cursorChange(rgba, hotx, hoty, w, h)
+    }
   }
 
   onConnect = (event) => {
