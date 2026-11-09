@@ -158,6 +158,7 @@ export default class VncTouch extends PureComponent {
     window.visualViewport?.removeEventListener('scroll', this.onViewport)
     clearTimeout(this.holdTimer)
     clearTimeout(this.pendingTap)
+    clearTimeout(this.pendingRight?.timer)
   }
 
   rfb = () => this.props.session.rfb
@@ -226,7 +227,7 @@ export default class VncTouch extends PureComponent {
       clientX: this.cx,
       clientY: this.cy,
       buttons,
-      button: buttons === 2 ? 2 : 0,
+      button: buttons === 2 ? 2 : buttons === 4 ? 1 : 0,
       bubbles: true,
       cancelable: true,
       view: window
@@ -298,6 +299,12 @@ export default class VncTouch extends PureComponent {
           this.pendingTap = null
           this.g.afterTap = true
         }
+        // same for a two finger tap: a second one resets the zoom
+        if (this.pendingRight) {
+          clearTimeout(this.pendingRight.timer)
+          this.g.afterRight = this.pendingRight
+          this.pendingRight = null
+        }
       }
       if (this.g.afterTap && t.length > 1) {
         this.g.afterTap = false
@@ -317,12 +324,15 @@ export default class VncTouch extends PureComponent {
         g.c0 = mid(t[0], t[1])
         g.c = g.c0
         g.z0 = this.props.session.zoom || 1
+        this.holdTimer = setTimeout(this.onHold2, HOLD_MS)
       }
       return
     }
     const g = this.g
     if (!g) return
     if (ev.type === 'touchmove') {
+      // the right click held back for a possible double tap goes out first
+      if (g.afterRight) this.flushRight(g)
       if (t.length === 1 && g.n === 1) {
         const p = { x: t[0].clientX, y: t[0].clientY }
         if (!g.moved && Math.hypot(p.x - g.start.x, p.y - g.start.y) > MOVE_SLOP) {
@@ -342,15 +352,22 @@ export default class VncTouch extends PureComponent {
       } else if (t.length === 2) {
         const d = dist(t[0], t[1])
         const c = mid(t[0], t[1])
-        if (!g.mode) {
-          if (Math.abs(d - g.d0) > PINCH_SLOP) g.mode = 'pinch'
-          else if (Math.hypot(c.x - g.c0.x, c.y - g.c0.y) > SCROLL_SLOP) g.mode = 'scroll'
+        if (!g.mode && !g.middle) {
+          if (Math.abs(d - g.d0) > PINCH_SLOP) {
+            g.mode = 'pinch'
+          } else if (Math.hypot(c.x - g.c0.x, c.y - g.c0.y) > SCROLL_SLOP) {
+            g.mode = 'scroll'
+            // scroll along the axis the fingers started on, so a slightly
+            // slanted swipe does not scroll sideways too
+            g.axis = Math.abs(c.x - g.c0.x) > Math.abs(c.y - g.c0.y) ? 'x' : 'y'
+          }
+          if (g.mode) clearTimeout(this.holdTimer)
         }
         if (g.mode === 'pinch') {
           this.zoom(g.z0 * d / g.d0, c)
         } else if (g.mode === 'scroll') {
           // natural scrolling: content follows the fingers
-          this.wheel((g.c.x - c.x) * 2, (g.c.y - c.y) * 2)
+          this.wheel(g.axis === 'x' ? (g.c.x - c.x) * 2 : 0, g.axis === 'y' ? (g.c.y - c.y) * 2 : 0)
         }
         g.c = c
       }
@@ -361,6 +378,16 @@ export default class VncTouch extends PureComponent {
     clearTimeout(this.holdTimer)
     this.g = null
     const quick = Date.now() - g.t0 < TAP_MS
+    const twoTap = g.n === 2 && !g.mode && !g.middle && quick && ev.type !== 'touchcancel'
+    if (g.afterRight) {
+      if (twoTap) {
+        // two finger double tap: back to the whole screen
+        g.afterRight = null
+        this.zoom(1, { x: window.innerWidth / 2, y: window.innerHeight / 2 })
+        return
+      }
+      this.flushRight(g)
+    }
     if (g.drag) {
       this.mouse('mouseup', 0)
       this.releaseMods()
@@ -380,11 +407,41 @@ export default class VncTouch extends PureComponent {
       if (this.props.session.textCursor && !this.state.kb) {
         this.openKb()
       }
-    } else if (g.n === 2 && !g.mode && quick) {
-      this.click(2)
+    } else if (twoTap) {
+      // held back like the single tap, a second two finger tap resets the zoom
+      this.clampCursor()
+      const right = { x: this.cx, y: this.cy }
+      right.timer = setTimeout(() => {
+        this.pendingRight = null
+        this.rightClick(right)
+      }, DOUBLE_MS)
+      this.pendingRight = right
     } else if (g.n === 3 && quick) {
       this.toggleKb()
     }
+  }
+
+  // right click where the cursor was at the tap
+  rightClick (at) {
+    this.cx = at.x
+    this.cy = at.y
+    this.click(2)
+  }
+
+  flushRight (g) {
+    const at = g.afterRight
+    g.afterRight = null
+    this.rightClick(at)
+  }
+
+  // two fingers held still: middle click
+  onHold2 = () => {
+    const g = this.g
+    if (!g || g.n !== 2 || g.mode) return
+    g.middle = true
+    if (g.afterRight) this.flushRight(g)
+    navigator.vibrate?.(15)
+    this.click(4)
   }
 
   onHold = () => {
