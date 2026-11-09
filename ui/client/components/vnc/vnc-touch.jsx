@@ -25,6 +25,7 @@ import './vnc-touch.styl'
 const SPEED = 1.5 // cursor px per finger px
 const TAP_MS = 300
 const HOLD_MS = 500
+const DOUBLE_MS = 250 // after a tap, wait this long for a second finger (drag / double click)
 const MOVE_SLOP = 8
 const PINCH_SLOP = 30
 const SCROLL_SLOP = 12
@@ -156,6 +157,7 @@ export default class VncTouch extends PureComponent {
     window.visualViewport?.removeEventListener('resize', this.onViewport)
     window.visualViewport?.removeEventListener('scroll', this.onViewport)
     clearTimeout(this.holdTimer)
+    clearTimeout(this.pendingTap)
   }
 
   rfb = () => this.props.session.rfb
@@ -290,6 +292,16 @@ export default class VncTouch extends PureComponent {
     if (ev.type === 'touchstart') {
       if (!this.g) {
         this.g = { n: 0, t0: Date.now(), moved: false, drag: false, mode: null }
+        // a finger right after a tap: that tap becomes a double click or a drag
+        if (this.pendingTap) {
+          clearTimeout(this.pendingTap)
+          this.pendingTap = null
+          this.g.afterTap = true
+        }
+      }
+      if (this.g.afterTap && t.length > 1) {
+        this.g.afterTap = false
+        this.click(1) // it was a plain tap after all
       }
       const g = this.g
       g.n = Math.max(g.n, t.length)
@@ -316,6 +328,12 @@ export default class VncTouch extends PureComponent {
         if (!g.moved && Math.hypot(p.x - g.start.x, p.y - g.start.y) > MOVE_SLOP) {
           g.moved = true
           clearTimeout(this.holdTimer)
+          // tap, then swipe: drag with the left button down (selects text)
+          if (g.afterTap && !g.drag) {
+            g.drag = true
+            this.clampCursor()
+            this.mouse('mousedown', 1)
+          }
         }
         if (g.moved || g.drag) {
           this.moveCursor((p.x - g.last.x) * SPEED, (p.y - g.last.y) * SPEED)
@@ -348,8 +366,16 @@ export default class VncTouch extends PureComponent {
       this.releaseMods()
     } else if (ev.type === 'touchcancel') {
       // nothing
-    } else if (g.n === 1 && !g.moved && quick) {
+    } else if (g.n === 1 && !g.moved && g.afterTap) {
+      // tap, tap: double click (a slow second press is just one more click)
       this.click(1)
+      if (quick) this.click(1)
+    } else if (g.n === 1 && !g.moved && quick) {
+      // held back a moment, a finger may follow to drag or double click
+      this.pendingTap = setTimeout(() => {
+        this.pendingTap = null
+        this.click(1)
+      }, DOUBLE_MS)
       // tapped into a text field: bring the keyboard up (still inside the gesture)
       if (this.props.session.textCursor && !this.state.kb) {
         this.openKb()

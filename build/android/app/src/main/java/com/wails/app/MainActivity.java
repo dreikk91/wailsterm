@@ -1,5 +1,6 @@
 package com.wails.app;
 
+import android.Manifest;
 import android.annotation.SuppressLint;
 import android.content.BroadcastReceiver;
 import android.content.Context;
@@ -14,11 +15,13 @@ import android.net.Uri;
 import android.os.BatteryManager;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Environment;
 import android.os.PowerManager;
 import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.provider.MediaStore;
+import android.provider.Settings;
 import android.provider.OpenableColumns;
 import android.util.Base64;
 import android.util.Log;
@@ -115,6 +118,8 @@ public class MainActivity extends AppCompatActivity {
 
         // Load the application
         loadApplication();
+
+        requestStorageAccess();
     }
 
     @SuppressLint("SetJavaScriptEnabled")
@@ -271,6 +276,30 @@ public class MainActivity extends AppCompatActivity {
                 return true;
             }
         });
+    }
+
+    /**
+     * The file manager reads phone storage by plain paths from Go, which needs
+     * "All files access" on Android 11+ (the storage permissions before that).
+     * Asked once; it can be granted later in the app settings.
+     */
+    private void requestStorageAccess() {
+        android.content.SharedPreferences prefs = getSharedPreferences("wailsterm", MODE_PRIVATE);
+        if (prefs.getBoolean("storageAsked", false)) return;
+        prefs.edit().putBoolean("storageAsked", true).apply();
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            if (Environment.isExternalStorageManager()) return;
+            try {
+                startActivity(new Intent(Settings.ACTION_MANAGE_APP_ALL_FILES_ACCESS_PERMISSION,
+                        Uri.parse("package:" + getPackageName())));
+            } catch (Exception e) {
+                startActivity(new Intent(Settings.ACTION_MANAGE_ALL_FILES_ACCESS_PERMISSION));
+            }
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
+                && checkSelfPermission(Manifest.permission.WRITE_EXTERNAL_STORAGE) != PackageManager.PERMISSION_GRANTED) {
+            requestPermissions(new String[]{Manifest.permission.READ_EXTERNAL_STORAGE,
+                    Manifest.permission.WRITE_EXTERNAL_STORAGE}, 1);
+        }
     }
 
     private void loadApplication() {
