@@ -14,8 +14,10 @@ android {
         applicationId "com.wailsterm.app"
         minSdk 21
         targetSdk 35
-        versionCode 1
-        versionName "1.0"
+        // CI passes the run number (it must grow for an APK to install as an
+        // update) and the tag; local builds stay at 1 / "dev"
+        versionCode((System.getenv("VERSION_CODE") ?: "1").toInteger())
+        versionName(System.getenv("VERSION_NAME") ?: "dev")
 
         // Configure supported ABIs
         ndk {

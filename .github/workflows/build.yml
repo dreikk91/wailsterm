@@ -29,11 +29,13 @@ jobs:
             task: package
             pack: ditto -c -k --keepParent wailsterm.app ../wailsterm-macos-arm64.zip
             file: wailsterm-macos-arm64.zip
-          # debug-signed, so it installs directly; the runner image ships the Android SDK and NDK
+          # release APK signed with the key from the repo secrets (debug key when they are
+          # missing, e.g. PRs from forks); the runner image ships the Android SDK and NDK
           - os: ubuntu-24.04
-            task: task android:build ARCH=arm64 PRODUCTION=true && wails3 task android:assemble:apk
+            task: task android:package
             pack: mv wailsterm.apk ../wailsterm-android-arm64.apk
             file: wailsterm-android-arm64.apk
+            android: true
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -51,7 +53,22 @@ jobs:
       - if: matrix.linux
         run: sudo apt-get update && sudo apt-get install -y build-essential pkg-config libgtk-4-dev libwebkitgtk-6.0-dev
       - run: go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0
+      # one signing key for every build, so a new APK installs over the old one
+      - if: matrix.android
+        env:
+          KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE" ]; then
+            echo "$KEYSTORE" | base64 -d > "$RUNNER_TEMP/release.jks"
+            echo "ANDROID_KEYSTORE_FILE=$RUNNER_TEMP/release.jks" >> "$GITHUB_ENV"
+          fi
       - run: wails3 ${{ matrix.task }}
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          VERSION_CODE: ${{ github.run_number }}
+          VERSION_NAME: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('dev.{0}', github.run_number) }}
       - run: ${{ matrix.pack }}
         working-directory: bin
       # archive: false uploads the file as is (one file per step), so the run page does not zip it again
