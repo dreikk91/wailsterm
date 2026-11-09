@@ -9,6 +9,9 @@
  *   pinch                zoom, the zoomed desktop pans when the cursor is pushed past an edge
  *   3 finger tap         toggle the soft keyboard
  *
+ * A floating panel at the top (collapsed to a tab) holds the keyboard,
+ * fullscreen, fit, file manager and reconnect buttons.
+ *
  * Touches are taken in the capture phase on the mount, so noVNC's own
  * direct-touch GestureHandler on the canvas never sees them; the result is
  * replayed to noVNC as synthetic mouse/wheel events on its canvas, which also
@@ -19,6 +22,18 @@
  * it, and shifts the desktop up by the space the keyboard takes.
  */
 import { PureComponent, createRef } from 'react'
+import { createPortal } from 'react-dom'
+import {
+  CompressOutlined,
+  DownOutlined,
+  FolderOutlined,
+  FullscreenExitOutlined,
+  FullscreenOutlined,
+  PushpinFilled,
+  PushpinOutlined,
+  ReloadOutlined,
+  UpOutlined
+} from '@ant-design/icons'
 import './vnc-touch.styl'
 
 // ponytail: fixed tuning, make these settings if users ask
@@ -125,6 +140,10 @@ export const isTouchDevice = () => navigator.maxTouchPoints > 0
 
 export default class VncTouch extends PureComponent {
   state = {
+    host: null, // session viewport, where the floating panel is rendered
+    panel: false,
+    // saved in the app config: open touch VNC sessions fullscreen
+    pinFull: !!window.store?.config?.vncTouchFullscreen,
     kb: false,
     barTop: 0,
     mods: []
@@ -140,6 +159,11 @@ export default class VncTouch extends PureComponent {
 
   componentDidMount () {
     const el = this.mount()
+    // the floating panel goes into the session viewport, next to the mount
+    this.setState({ host: el.parentElement })
+    if (this.state.pinFull && !this.props.session.props.fullscreen) {
+      window.store.toggleSessFullscreen(true)
+    }
     const opts = { capture: true, passive: false }
     for (const t of ['touchstart', 'touchmove', 'touchend', 'touchcancel']) {
       el.addEventListener(t, this.onTouch, opts)
@@ -626,18 +650,53 @@ export default class VncTouch extends PureComponent {
           onCompositionEnd={() => { this.composing = false }}
           onBlur={this.onBlur}
         />
-        {kb
-          ? this.renderBar()
-          : (
-            <button
-              className='vnc-touch-kb-btn'
-              onClick={this.openKb}
-              title='Keyboard'
-            >
-              ⌨
-            </button>
-            )}
+        {kb && this.renderBar()}
+        {this.state.host && createPortal(this.renderPanel(), this.state.host)}
       </>
+    )
+  }
+
+  // pin: always open VNC sessions fullscreen (and go there now)
+  togglePinFull = () => {
+    const pinFull = !this.state.pinFull
+    window.store.setConfig({ vncTouchFullscreen: pinFull })
+    this.setState({ pinFull })
+    if (pinFull && !this.props.session.props.fullscreen) {
+      window.store.toggleSessFullscreen(true)
+    }
+  }
+
+  // RealVNC-style floating panel at the top of the desktop; collapsed it is a
+  // small tab. Lives in the session viewport, so the keyboard lift leaves it be.
+  renderPanel () {
+    const { session } = this.props
+    const { panel, kb } = this.state
+    const keep = e => e.preventDefault() // keep the keyboard's focus
+    if (!panel) {
+      return (
+        <div className='vnc-touch-panel collapsed' onMouseDown={keep} onClick={() => this.setState({ panel: true })}>
+          <DownOutlined />
+        </div>
+      )
+    }
+    const full = session.props.fullscreen
+    const FullIcon = full ? FullscreenExitOutlined : FullscreenOutlined
+    const btn = (key, icon, onClick, active) => (
+      <span key={key} className={'vnc-touch-panel-btn' + (active ? ' active' : '')} onMouseDown={keep} onClick={onClick}>
+        {icon}
+      </span>
+    )
+    const PinIcon = this.state.pinFull ? PushpinFilled : PushpinOutlined
+    return (
+      <div className='vnc-touch-panel'>
+        {btn('pin', <PinIcon />, this.togglePinFull, this.state.pinFull)}
+        {btn('kb',<span className='vnc-touch-panel-kb'>⌨</span>, this.toggleKb, kb)}
+        {btn('full', <FullIcon />, () => window.store.toggleSessFullscreen(!full))}
+        {btn('fit', <CompressOutlined />, () => this.zoom(1, { x: window.innerWidth / 2, y: window.innerHeight / 2 }))}
+        {btn('files', <FolderOutlined />, session.toggleFiles)}
+        {btn('reload', <ReloadOutlined />, session.handleReInit)}
+        {btn('hide', <UpOutlined />, () => this.setState({ panel: false }))}
+      </div>
     )
   }
 }

@@ -24,20 +24,52 @@
   resize none
   font-size 16px // smaller makes iOS zoom the page on focus
 
-.vnc-touch-kb-btn
-  position fixed
-  right 16px
-  bottom 16px
-  z-index 900
-  width 48px
-  height 48px
-  border-radius 50%
-  border 0
-  font-size 24px
-  color var(--text)
-  background var(--main-darker)
-  opacity 0.7
-  box-shadow 0 2px 8px rgba(0, 0, 0, 0.4)
+// floating panel at the top of the desktop (RealVNC style); collapsed to a tab.
+// Specific enough to beat the shell's fit rule sizing every viewport child.
+.vnc-session-wrap .remote-session-viewport > .vnc-touch-panel
+  width auto
+  height auto
+  flex none
+
+.vnc-touch-panel
+  position absolute
+  top 6px
+  left 50%
+  transform translateX(-50%)
+  z-index 500
+  display flex
+  align-items center
+  gap 2px
+  padding 4px 10px
+  border-radius 28px
+  border 2px solid rgba(255, 255, 255, 0.35)
+  background rgba(0, 0, 0, 0.75)
+  color #fff
+  font-size 22px
+  user-select none
+  touch-action manipulation
+  &.collapsed
+    top 0
+    padding 0 18px
+    border-top 0
+    border-radius 0 0 14px 14px
+    font-size 14px
+    line-height 22px
+    opacity 0.7
+
+.vnc-touch-panel-btn
+  display flex
+  align-items center
+  justify-content center
+  width 44px
+  height 40px
+  border-radius 20px
+  &.active
+    background var(--primary)
+
+.vnc-touch-panel-kb
+  font-size 26px
+  line-height 1
 
 .vnc-touch-bar
   position fixed
