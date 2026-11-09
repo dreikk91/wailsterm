@@ -50,7 +50,8 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: ui/package-lock.json
-      - if: matrix.linux
+      # the wails3 CLI itself links GTK/WebKit on Linux, the Android job needs them too
+      - if: runner.os == 'Linux'
         run: sudo apt-get update && sudo apt-get install -y build-essential pkg-config libgtk-4-dev libwebkitgtk-6.0-dev
       - run: go install github.com/wailsapp/wails/v3/cmd/wails3@v3.0.0
       # one signing key for every build, so a new APK installs over the old one
