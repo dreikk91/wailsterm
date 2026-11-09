@@ -112,7 +112,8 @@ export default class VncTouch extends PureComponent {
   cy = null
   buttons = 0
   g = null // current gesture
-  shift = 0
+  shift = 0 // how far the desktop is lifted for the keyboard
+  maxShift = 0
 
   componentDidMount () {
     const el = this.mount()
@@ -168,10 +169,18 @@ export default class VncTouch extends PureComponent {
 
   moveCursor (dx, dy) {
     this.clampCursor()
+    const x = this.cx + dx
+    let y = this.cy + dy
+    if (this.state.kb) {
+      // with the keyboard up the desktop slides up and down after the cursor
+      const v = this.visibleRect()
+      const over = y > v.bottom ? y - v.bottom : y < v.top ? y - v.top : 0
+      const shift = clamp(this.shift + over, 0, this.maxShift)
+      y -= shift - this.shift
+      this.setShift(shift)
+    }
     const s = this.screen()
     const v = this.visibleRect()
-    const x = this.cx + dx
-    const y = this.cy + dy
     // pushing past an edge pans a zoomed desktop instead
     if (x > v.right) s.scrollLeft += x - v.right
     else if (x < v.left) s.scrollLeft -= v.left - x
@@ -185,7 +194,11 @@ export default class VncTouch extends PureComponent {
 
   mouse (type, buttons = this.buttons) {
     this.buttons = buttons
-    this.rfb()._canvas.dispatchEvent(new MouseEvent(type, {
+    // noVNC covers the page with a capture layer on mousedown and drops it only
+    // when a mouseup reaches window, yet it stops the one sent to its canvas.
+    // A left-over layer swallowed the next touch as a direct (touchscreen) click.
+    const target = type === 'mouseup' && document.captureElement ? window : this.rfb()._canvas
+    target.dispatchEvent(new MouseEvent(type, {
       clientX: this.cx,
       clientY: this.cy,
       buttons,
@@ -245,6 +258,12 @@ export default class VncTouch extends PureComponent {
     }
     ev.preventDefault()
     ev.stopPropagation()
+    // touchpad mode only: noVNC's own direct-touch gestures (its pinch sends
+    // Ctrl+wheel, which resizes icons in Explorer) must never run
+    if (!rfb._touchpadOnly) {
+      rfb._gestures.detach()
+      rfb._touchpadOnly = true
+    }
     const t = ev.touches
     if (ev.type === 'touchstart') {
       if (!this.g) {
@@ -389,7 +408,10 @@ export default class VncTouch extends PureComponent {
     if (!m || !rfb) return
     const vv = window.visualViewport
     this.savedH = vv ? vv.height : window.innerHeight
-    this.canvasBottom = rfb._canvas.getBoundingClientRect().bottom
+    this.canvasBottom = Math.min(
+      rfb._canvas.getBoundingClientRect().bottom,
+      this.screen().getBoundingClientRect().bottom
+    )
     this.shown = false
     // freeze the desktop size, so a resizing webview does not rescale it
     m.style.height = m.clientHeight + 'px'
@@ -428,11 +450,17 @@ export default class VncTouch extends PureComponent {
       return
     }
     const barTop = vv.offsetTop + vv.height - BAR_H
-    // lift the desktop just enough that its bottom edge sits above the key bar
-    const shift = Math.max(0, this.canvasBottom - barTop)
+    // like RealVNC the keyboard just covers the bottom and the view stays put;
+    // pushing the cursor under it slides the desktop up, at most until its
+    // bottom edge sits above the key bar
+    this.maxShift = Math.max(0, this.canvasBottom - barTop)
+    this.setShift(clamp(this.shift, 0, this.maxShift))
+    this.setState({ barTop })
+  }
+
+  setShift (shift) {
     this.moveShift(shift)
     this.mount().style.transform = shift ? `translateY(${-shift}px)` : ''
-    this.setState({ barTop })
   }
 
   // the cursor rides along with the desktop

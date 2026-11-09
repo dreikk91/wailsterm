@@ -100,13 +100,30 @@ export default class VncSession extends PureComponent {
 
   componentDidMount () {
     this.remoteInit()
+    document.addEventListener('visibilitychange', this.onVisible)
   }
 
   componentWillUnmount () {
+    document.removeEventListener('visibilitychange', this.onVisible)
     this._detachClipboardSync()
     this.rfb && this.rfb.disconnect()
     delete this.rfb
     clearTimeout(this.timer)
+  }
+
+  // Android drops the canvas while the app sits in the background, and only
+  // changed areas get redrawn after: ask for the whole screen on return, or
+  // reconnect if the link died meanwhile
+  onVisible = () => {
+    const { rfb } = this
+    if (document.hidden || !rfb) {
+      return
+    }
+    if (rfb._rfbConnectionState === 'disconnected') {
+      this.handleReInit()
+    } else if (rfb._rfbConnectionState === 'connected') {
+      window.novnc.RFB.messages.fbUpdateRequest(rfb._sock, false, 0, 0, rfb._fbWidth, rfb._fbHeight)
+    }
   }
 
   setStatus = status => {

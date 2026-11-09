@@ -4,6 +4,13 @@
   // gestures are ours, the browser must not pan or zoom the page
   touch-action none
 
+// a zoomed desktop pans by pushing the cursor at an edge, scrollbars only eat room
+@media (pointer: coarse)
+  .vnc-session-wrap .vnc-session-mount > div
+    scrollbar-width none
+    &::-webkit-scrollbar
+      display none
+
 // typed into while the soft keyboard is up; at the top so the browser never scrolls to it
 .vnc-touch-input
   position fixed
